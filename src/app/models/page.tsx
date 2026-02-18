@@ -12,7 +12,10 @@ import {
     ArrowRight,
     Sparkles,
     CheckCircle,
-    TrendingUp
+    TrendingUp,
+    Target,
+    Microscope,
+    Layers,
 } from 'lucide-react';
 
 const modelCategories = [
@@ -58,6 +61,44 @@ const modelCategories = [
     },
 ];
 
+const foundationCategories = [
+    {
+        name: 'OpenMed Segmentation',
+        icon: Layers,
+        color: '#10B981',
+        models: [
+            { name: 'SAM-Med2D', accuracy: '94.2%', data: '4.6M images' },
+            { name: 'SAM-Med3D', accuracy: '91.8%', data: '21K+ volumes' },
+        ],
+    },
+    {
+        name: 'Retinal Foundation',
+        icon: Eye,
+        color: '#8B5CF6',
+        models: [
+            { name: 'RETFound (Nature 2023)', accuracy: '96.1%', data: '1.6M images' },
+        ],
+    },
+    {
+        name: 'Endoscopy & NLP',
+        icon: Microscope,
+        color: '#F59E0B',
+        models: [
+            { name: 'Endo-FM', accuracy: '93.4%', data: '33K+ videos' },
+            { name: 'PULSE Medical LLM', accuracy: '92.8%', data: '7B params' },
+        ],
+    },
+    {
+        name: 'MixFormer Tracking',
+        icon: Target,
+        color: '#EF4444',
+        models: [
+            { name: 'MixFormer-ViT (CVPR 2022)', accuracy: '86.1%', data: 'SOTA #1/41' },
+            { name: 'MixFormer-CvT (CVPR 2022)', accuracy: '73.3%', data: 'Hierarchical' },
+        ],
+    },
+];
+
 export default function ModelsPage() {
     const getColorStyles = (color: string) => {
         const colors: Record<string, { bg: string; light: string; accent: string }> = {
@@ -82,17 +123,18 @@ export default function ModelsPage() {
                             AI Model Hub
                         </h1>
                         <p className="text-sm" style={{ color: 'var(--silver)' }}>
-                            25+ specialized YOLO models for medical image analysis
+                            25+ YOLO models + 7 Foundation Models (OpenMEDLab + MixFormer)
                         </p>
                     </div>
                 </div>
 
                 {/* Stats */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
                     {[
-                        { label: 'Total Models', value: '25+' },
+                        { label: 'YOLO Models', value: '25+' },
+                        { label: 'Foundation Models', value: '7' },
                         { label: 'Avg Accuracy', value: '96.2%' },
-                        { label: 'Training Images', value: '500K+' },
+                        { label: 'Training Data', value: '8M+' },
                         { label: 'Detections', value: '1M+' },
                     ].map((stat, i) => (
                         <div key={i} className="card card-bordered text-center" style={{ padding: 'var(--space-lg)' }}>
@@ -102,8 +144,39 @@ export default function ModelsPage() {
                     ))}
                 </div>
 
-                {/* Model Categories */}
-                <div className="space-y-8">
+                {/* Foundation Models Banner */}
+                <Link href="/foundation-models">
+                    <motion.div
+                        whileHover={{ scale: 1.01 }}
+                        className="card card-bordered hover-lift mb-8 cursor-pointer"
+                        style={{
+                            padding: 'var(--space-lg)',
+                            background: 'linear-gradient(135deg, rgba(16,185,129,0.05), rgba(139,92,246,0.05), rgba(239,68,68,0.05))',
+                            borderLeft: '4px solid #10B981',
+                        }}
+                    >
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                                <Brain className="w-6 h-6" style={{ color: '#10B981' }} />
+                                <div>
+                                    <h3 className="font-semibold" style={{ color: 'var(--charcoal)' }}>
+                                        OpenMEDLab + MixFormer Foundation Models
+                                    </h3>
+                                    <p className="text-sm" style={{ color: 'var(--silver)' }}>
+                                        SAM-Med2D/3D • RETFound • Endo-FM • PULSE • MixFormer CVPR 2022 — View architecture, benchmarks, and pipeline
+                                    </p>
+                                </div>
+                            </div>
+                            <ArrowRight className="w-5 h-5" style={{ color: 'var(--silver)' }} />
+                        </div>
+                    </motion.div>
+                </Link>
+
+                {/* YOLO Model Categories */}
+                <h2 className="heading-serif text-lg mb-4" style={{ color: 'var(--charcoal)' }}>
+                    YOLO Detection Models
+                </h2>
+                <div className="space-y-8 mb-12">
                     {modelCategories.map((category, catIndex) => {
                         const colors = getColorStyles(category.color);
                         return (
@@ -129,7 +202,7 @@ export default function ModelsPage() {
                                 </div>
 
                                 <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                    {category.models.map((model, i) => (
+                                    {category.models.map((model) => (
                                         <motion.div
                                             key={model.name}
                                             whileHover={{ scale: 1.02 }}
@@ -159,8 +232,67 @@ export default function ModelsPage() {
                         );
                     })}
                 </div>
+
+                {/* Foundation Model Categories */}
+                <h2 className="heading-serif text-lg mb-4" style={{ color: 'var(--charcoal)' }}>
+                    Foundation Models (OpenMEDLab + MixFormer)
+                </h2>
+                <div className="space-y-6">
+                    {foundationCategories.map((cat, i) => (
+                        <motion.div
+                            key={cat.name}
+                            initial={{ opacity: 0, y: 20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ delay: 0.4 + i * 0.1 }}
+                        >
+                            <div className="flex items-center gap-3 mb-4">
+                                <div
+                                    className="w-10 h-10 rounded-xl flex items-center justify-center"
+                                    style={{ background: `${cat.color}15` }}
+                                >
+                                    <cat.icon className="w-5 h-5" style={{ color: cat.color }} />
+                                </div>
+                                <h3 className="heading-serif text-xl" style={{ color: 'var(--charcoal)' }}>
+                                    {cat.name}
+                                </h3>
+                                <span className="pill pill-default text-xs">
+                                    {cat.models.length} models
+                                </span>
+                            </div>
+                            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                {cat.models.map(model => (
+                                    <motion.div
+                                        key={model.name}
+                                        whileHover={{ scale: 1.02 }}
+                                        className="card card-bordered hover-lift cursor-pointer"
+                                        style={{
+                                            padding: 'var(--space-lg)',
+                                            borderLeft: `3px solid ${cat.color}`,
+                                        }}
+                                    >
+                                        <div className="flex items-start justify-between mb-3">
+                                            <h3 className="font-medium" style={{ color: 'var(--charcoal)' }}>
+                                                {model.name}
+                                            </h3>
+                                            <Sparkles className="w-4 h-4" style={{ color: cat.color }} />
+                                        </div>
+                                        <div className="flex items-center gap-4 text-sm" style={{ color: 'var(--silver)' }}>
+                                            <span className="flex items-center gap-1">
+                                                <CheckCircle className="w-3.5 h-3.5" style={{ color: cat.color }} />
+                                                {model.accuracy}
+                                            </span>
+                                            <span className="flex items-center gap-1">
+                                                <TrendingUp className="w-3.5 h-3.5" />
+                                                {model.data}
+                                            </span>
+                                        </div>
+                                    </motion.div>
+                                ))}
+                            </div>
+                        </motion.div>
+                    ))}
+                </div>
             </div>
         </div>
     );
 }
-

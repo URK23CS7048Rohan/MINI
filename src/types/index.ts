@@ -378,3 +378,276 @@ export interface AnalyticsSummary {
     detectionsByType: { type: string; count: number }[];
 }
 
+// ============================================
+// OpenMEDLab Foundation Model Types
+// ============================================
+
+export type FoundationModelType =
+    | 'sam_med_2d'
+    | 'sam_med_3d'
+    | 'retfound'
+    | 'endo_fm'
+    | 'pulse'
+    | 'mixformer_cvt'
+    | 'mixformer_vit';
+
+export type FoundationModelCategory =
+    | 'segmentation'
+    | 'retinal'
+    | 'endoscopy'
+    | 'medical_nlp'
+    | 'tracking';
+
+export interface FoundationModel {
+    id: string;
+    name: string;
+    type: FoundationModelType;
+    category: FoundationModelCategory;
+    description: string;
+    paper: string;
+    venue: string;
+    repository: string;
+    architecture: string;
+    pretrainingData: string;
+    accuracy: number;
+    isActive: boolean;
+    capabilities: string[];
+}
+
+// SAM-Med2D / SAM-Med3D Types
+export interface SegmentationPrompt {
+    type: 'point' | 'box' | 'mask';
+    points?: { x: number; y: number; label: 0 | 1 }[];
+    box?: { x1: number; y1: number; x2: number; y2: number };
+    mask?: number[][];
+}
+
+export interface SegmentationMask {
+    id: string;
+    maskData: number[][];
+    confidence: number;
+    area: number;
+    boundingBox: BoundingBox;
+    iouPrediction: number;
+    stability: number;
+    label?: string;
+    organ?: string;
+    pathology?: string;
+}
+
+export interface SegmentationResult {
+    id: string;
+    modelType: 'sam_med_2d' | 'sam_med_3d';
+    masks: SegmentationMask[];
+    imageSize: { width: number; height: number; depth?: number };
+    processingTime: number;
+    timestamp: string;
+    metadata: {
+        encoderType: string;
+        adapterLayers: number;
+        patchSize: number;
+        promptsUsed: SegmentationPrompt[];
+    };
+}
+
+export interface VolumetricMask extends SegmentationMask {
+    depth: number;
+    sliceRange: { start: number; end: number };
+    volumeCC: number;
+}
+
+export interface VolumetricResult extends Omit<SegmentationResult, 'masks'> {
+    masks: VolumetricMask[];
+    volumeSize: { width: number; height: number; depth: number };
+    sliceCount: number;
+}
+
+// RETFound Types
+export interface RetinalAnalysis {
+    id: string;
+    modelType: 'retfound';
+    diseases: RetinalDisease[];
+    overallRisk: 'low' | 'moderate' | 'high' | 'critical';
+    cardiovascularRisk: number;
+    qualityScore: number;
+    processingTime: number;
+    timestamp: string;
+    metadata: {
+        encoderBlocks: number;
+        embeddingDim: number;
+        attentionHeads: number;
+        pretrainingImages: string;
+        patchSize: number;
+    };
+}
+
+export interface RetinalDisease {
+    name: string;
+    confidence: number;
+    severity: 'none' | 'mild' | 'moderate' | 'severe' | 'proliferative';
+    affectedRegion?: string;
+    biomarkers: string[];
+    recommendation: string;
+}
+
+// Endo-FM Types
+export interface EndoscopyAnalysis {
+    id: string;
+    modelType: 'endo_fm';
+    frames: EndoscopyFrame[];
+    overallFindings: string[];
+    surgicalPhase?: string;
+    sceneClassification: string;
+    processingTime: number;
+    timestamp: string;
+    metadata: {
+        frameCount: number;
+        fps: number;
+        spatialEncoding: string;
+        temporalEncoding: string;
+        pretrainingMethod: string;
+    };
+}
+
+export interface EndoscopyFrame {
+    frameIndex: number;
+    timestamp: number;
+    pathologies: EndoscopyPathology[];
+    sceneType: string;
+    qualityScore: number;
+}
+
+export interface EndoscopyPathology {
+    type: 'polyp' | 'ulcer' | 'inflammation' | 'tumor' | 'bleeding' | 'stricture' | 'normal';
+    confidence: number;
+    location: BoundingBox;
+    size: 'diminutive' | 'small' | 'medium' | 'large';
+    morphology?: string;
+    parisClassification?: string;
+}
+
+// PULSE Medical NLP Types
+export interface MedicalNLPResult {
+    id: string;
+    modelType: 'pulse';
+    clinicalSummary: string;
+    anatomicalSegmentation?: string;
+    diseaseClassification: DiseaseClassification[];
+    treatmentSuggestions: string[];
+    differentialDiagnosis: string[];
+    icdCodes: string[];
+    processingTime: number;
+    timestamp: string;
+    metadata: {
+        backbone: string;
+        decoderType: string;
+        pretrainingData: string[];
+        taskType: string;
+    };
+}
+
+export interface DiseaseClassification {
+    name: string;
+    confidence: number;
+    category: string;
+    icdCode?: string;
+    severity?: string;
+}
+
+// ============================================
+// MixFormer CVPR 2022 Types
+// ============================================
+
+export interface TrackingResult {
+    id: string;
+    modelType: 'mixformer_cvt' | 'mixformer_vit';
+    frameIndex: number;
+    boundingBox: BoundingBox;
+    confidence: number;
+    velocity: { dx: number; dy: number };
+    sizeChange: { dw: number; dh: number };
+    isOccluded: boolean;
+    trackingQuality: 'excellent' | 'good' | 'fair' | 'poor' | 'lost';
+    timestamp: string;
+}
+
+export interface TrackingTrajectory {
+    id: string;
+    templateImage?: string;
+    results: TrackingResult[];
+    totalFrames: number;
+    avgConfidence: number;
+    avgIoU: number;
+    trackingDuration: number;
+    evolution: LesionEvolution;
+}
+
+export interface LesionEvolution {
+    sizeChange: number;
+    growthRate: number;
+    morphologyChange: 'stable' | 'growing' | 'shrinking' | 'irregular';
+    colorChange: 'unchanged' | 'darkening' | 'lightening' | 'heterogeneous';
+    borderChange: 'regular' | 'irregular' | 'expanding';
+    riskAssessment: 'benign' | 'monitor' | 'suspicious' | 'urgent';
+    timelinePoints: EvolutionTimepoint[];
+}
+
+export interface EvolutionTimepoint {
+    timestamp: string;
+    frameIndex: number;
+    area: number;
+    perimeter: number;
+    aspectRatio: number;
+    confidence: number;
+}
+
+export interface MixedAttentionConfig {
+    backboneType: 'mixcvt' | 'mixvit';
+    numStages: number;
+    embeddingDim: number;
+    numHeads: number;
+    templateSize: number;
+    searchSize: number;
+    localizationHead: 'query_based' | 'corner_based';
+    pretrainedWeights: string;
+}
+
+// ============================================
+// Foundation Pipeline Types
+// ============================================
+
+export interface FoundationPipelineResult {
+    id: string;
+    stages: PipelineStage[];
+    consensus: ConsensusResult;
+    totalProcessingTime: number;
+    timestamp: string;
+}
+
+export interface PipelineStage {
+    name: string;
+    model: string;
+    status: 'pending' | 'processing' | 'completed' | 'error';
+    result?: SegmentationResult | RetinalAnalysis | EndoscopyAnalysis | MedicalNLPResult | TrackingTrajectory;
+    processingTime: number;
+    confidence: number;
+}
+
+export interface ConsensusResult {
+    primaryDiagnosis: string;
+    confidence: number;
+    agreementScore: number;
+    modelVotes: ModelVote[];
+    severity: 'critical' | 'high' | 'medium' | 'low' | 'normal';
+    recommendations: string[];
+    differentialDiagnoses: string[];
+}
+
+export interface ModelVote {
+    modelName: string;
+    modelType: FoundationModelType;
+    diagnosis: string;
+    confidence: number;
+    weight: number;
+}
+

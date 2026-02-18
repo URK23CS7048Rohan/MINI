@@ -635,21 +635,38 @@ export class RoboflowClient {
 // Export singleton instance
 export const roboflowClient = new RoboflowClient();
 
+// Import foundation models for unified stats
+import { OPENMED_MODELS } from './openmed';
+import { MIXFORMER_MODELS } from './mixformer';
+
+export const ALL_FOUNDATION_MODELS = [...OPENMED_MODELS, ...MIXFORMER_MODELS];
+
 // Helper function to get model statistics
 export function getModelStats() {
-    const models = MEDICAL_MODELS.filter(m => m.isActive);
-    const categories = [...new Set(models.map(m => m.category))];
-    const totalClasses = models.reduce((acc, m) => acc + m.classes.length, 0);
+    const yoloModels = MEDICAL_MODELS.filter(m => m.isActive);
+    const foundationModels = ALL_FOUNDATION_MODELS.filter(m => m.isActive);
+    const allCategories = [
+        ...new Set([
+            ...yoloModels.map(m => m.category),
+            ...foundationModels.map(m => m.category),
+        ]),
+    ];
+    const totalClasses = yoloModels.reduce((acc, m) => acc + m.classes.length, 0);
 
     return {
-        totalModels: models.length,
-        categories: categories.length,
+        totalModels: yoloModels.length + foundationModels.length,
+        yoloModels: yoloModels.length,
+        foundationModels: foundationModels.length,
+        categories: allCategories.length,
         totalClasses,
-        categoryBreakdown: categories.map(cat => ({
+        categoryBreakdown: allCategories.map(cat => ({
             category: cat,
-            modelCount: models.filter(m => m.category === cat).length,
+            modelCount:
+                yoloModels.filter(m => m.category === cat).length +
+                foundationModels.filter(m => m.category === cat).length,
         })),
-        averageAccuracy: models.reduce((acc, m) => acc + m.accuracy, 0) / models.length,
+        averageAccuracy: yoloModels.reduce((acc, m) => acc + m.accuracy, 0) / yoloModels.length,
     };
 }
+
 
