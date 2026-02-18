@@ -1,0 +1,3 @@
+openmed[hf]
+fastapi
+uvicorn[standard]

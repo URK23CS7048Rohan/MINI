@@ -45,7 +45,8 @@ import {
     Home,
     Scan,
     Menu,
-    X
+    X,
+    FileSearch
 } from 'lucide-react';
 import { useAppStore } from '@/store';
 import { getModelStats } from '@/lib/ai/model-hub';
@@ -155,6 +156,7 @@ export default function DashboardPage() {
                             { icon: Video, label: 'Consultations', href: '/consultations' },
                             { icon: Users, label: 'Patients', href: '/patients' },
                             { icon: Scan, label: 'AI Detection', href: '/detection' },
+                            { icon: FileSearch, label: 'NLP Analysis', href: '/nlp-analysis' },
                             { icon: Brain, label: 'Model Hub', href: '/models' },
                             { icon: FileText, label: 'Documents', href: '/documents' },
                             { icon: Calendar, label: 'Schedule', href: '/schedule' },
@@ -497,7 +499,7 @@ export default function DashboardPage() {
                             {[
                                 { icon: Video, label: 'Start Call', href: '/consultations' },
                                 { icon: UserPlus, label: 'Add Patient', href: '/patients' },
-                                { icon: FileText, label: 'SOAP Note', href: '/documents' },
+                                { icon: FileSearch, label: 'NLP Analysis', href: '/nlp-analysis' },
                                 { icon: Scan, label: 'AI Detection', href: '/detection' },
                             ].map((action, i) => (
                                 <Link
