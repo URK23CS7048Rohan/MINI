@@ -46,7 +46,9 @@ import {
     Scan,
     Menu,
     X,
-    FileSearch
+    FileSearch,
+    Layers,
+    Crosshair,
 } from 'lucide-react';
 import { useAppStore } from '@/store';
 import { getModelStats } from '@/lib/ai/model-hub';
@@ -156,8 +158,11 @@ export default function DashboardPage() {
                             { icon: Video, label: 'Consultations', href: '/consultations' },
                             { icon: Users, label: 'Patients', href: '/patients' },
                             { icon: Scan, label: 'AI Detection', href: '/detection' },
+                            { icon: Layers, label: 'Segmentation', href: '/segmentation' },
+                            { icon: Crosshair, label: 'Point Tracking', href: '/point-tracking' },
                             { icon: FileSearch, label: 'NLP Analysis', href: '/nlp-analysis' },
                             { icon: Brain, label: 'Model Hub', href: '/models' },
+                            { icon: Sparkles, label: 'Foundation Models', href: '/foundation-models' },
                             { icon: FileText, label: 'Documents', href: '/documents' },
                             { icon: Calendar, label: 'Schedule', href: '/schedule' },
                             { icon: MessageSquare, label: 'Messages', href: '/messages' },
@@ -498,8 +503,8 @@ export default function DashboardPage() {
                         <div className="grid grid-cols-2 gap-3">
                             {[
                                 { icon: Video, label: 'Start Call', href: '/consultations' },
-                                { icon: UserPlus, label: 'Add Patient', href: '/patients' },
-                                { icon: FileSearch, label: 'NLP Analysis', href: '/nlp-analysis' },
+                                { icon: Layers, label: 'Segmentation', href: '/segmentation' },
+                                { icon: Crosshair, label: 'Point Tracking', href: '/point-tracking' },
                                 { icon: Scan, label: 'AI Detection', href: '/detection' },
                             ].map((action, i) => (
                                 <Link
