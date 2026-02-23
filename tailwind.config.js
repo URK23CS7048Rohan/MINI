@@ -31,7 +31,17 @@ module.exports = {
                     medium: '#eab308',
                     low: '#22c55e',
                     normal: '#3b82f6',
-                }
+                },
+                charcoal: 'var(--charcoal)',
+                cream: {
+                    DEFAULT: 'var(--cream)',
+                    dark: '#EBEBE6',
+                },
+                sage: 'var(--sage)',
+                sky: 'var(--sky)',
+                lavender: 'var(--lavender)',
+                'coral-light': 'var(--coral-light)',
+                mist: 'var(--mist)',
             },
             fontFamily: {
                 sans: ['Inter', 'system-ui', 'sans-serif'],

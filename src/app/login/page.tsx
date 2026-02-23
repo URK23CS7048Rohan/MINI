@@ -25,9 +25,11 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { login, register, biometricLogin } from '@/lib/db/auth';
+import { useAppStore } from '@/store';
 
 function LoginContent() {
     const router = useRouter();
+    const setLanguage = useAppStore(state => state.setLanguage);
     const searchParams = useSearchParams();
     const isRegister = searchParams?.get('register') === 'true';
 
@@ -65,6 +67,9 @@ function LoginContent() {
                 });
 
                 if (result.success) {
+                    if (result.user?.language) {
+                        setLanguage(result.user.language);
+                    }
                     setSuccess('Login successful! Redirecting...');
                     setTimeout(() => router.push('/dashboard'), 1000);
                 } else {
@@ -79,9 +84,11 @@ function LoginContent() {
                     specialty: formData.specialty,
                     licenseNumber: formData.licenseNumber,
                     phone: formData.phone,
+                    language: formData.language,
                 });
 
                 if (result.success) {
+                    setLanguage(formData.language);
                     setSuccess('Registration successful! Redirecting...');
                     setTimeout(() => router.push('/dashboard'), 1000);
                 } else {
@@ -102,6 +109,9 @@ function LoginContent() {
         try {
             const result = await biometricLogin();
             if (result.success) {
+                if (result.user?.language) {
+                    setLanguage(result.user.language);
+                }
                 setSuccess('Biometric authentication successful!');
                 setTimeout(() => router.push('/dashboard'), 1000);
             } else {
@@ -547,13 +557,27 @@ function LoginContent() {
                                 <div className="grid grid-cols-2 gap-3 mt-4">
                                     {/* Google Login */}
                                     <button
-                                        onClick={() => {
+                                        onClick={async () => {
                                             setLoading(true);
-                                            // Simulate Google OAuth flow
-                                            setTimeout(() => {
-                                                setSuccess('Google login successful!');
-                                                setTimeout(() => router.push('/dashboard'), 1000);
-                                            }, 1500);
+                                            setError('');
+                                            try {
+                                                const { getSupabaseClient } = await import('@/lib/db/supabase');
+                                                const supabase = getSupabaseClient();
+                                                const { error: oauthError } = await supabase.auth.signInWithOAuth({
+                                                    provider: 'google',
+                                                    options: {
+                                                        redirectTo: `${window.location.origin}/dashboard`,
+                                                    },
+                                                });
+                                                if (oauthError) {
+                                                    setError(oauthError.message || 'Google sign-in failed. Make sure Google OAuth is enabled in your Supabase project.');
+                                                    setLoading(false);
+                                                }
+                                                // If successful, the browser redirects to Google — no need to setLoading(false)
+                                            } catch (e) {
+                                                setError('Google sign-in is not configured. Enable it in Supabase Dashboard → Authentication → Providers → Google.');
+                                                setLoading(false);
+                                            }
                                         }}
                                         disabled={loading}
                                         className="py-3 border rounded-xl flex items-center justify-center gap-2 transition-colors hover:bg-gray-50"
@@ -580,14 +604,29 @@ function LoginContent() {
                                     </button>
                                 </div>
 
-                                {/* Additional social options */}
+                                {/* Microsoft Login */}
                                 <button
-                                    onClick={() => {
+                                    onClick={async () => {
                                         setLoading(true);
-                                        setTimeout(() => {
-                                            setSuccess('Microsoft login successful!');
-                                            setTimeout(() => router.push('/dashboard'), 1000);
-                                        }, 1500);
+                                        setError('');
+                                        try {
+                                            const { getSupabaseClient } = await import('@/lib/db/supabase');
+                                            const supabase = getSupabaseClient();
+                                            const { error: oauthError } = await supabase.auth.signInWithOAuth({
+                                                provider: 'azure',
+                                                options: {
+                                                    redirectTo: `${window.location.origin}/dashboard`,
+                                                    scopes: 'email profile openid',
+                                                },
+                                            });
+                                            if (oauthError) {
+                                                setError(oauthError.message || 'Microsoft sign-in failed. Enable Azure provider in Supabase.');
+                                                setLoading(false);
+                                            }
+                                        } catch (e) {
+                                            setError('Microsoft sign-in is not configured. Enable it in Supabase Dashboard → Authentication → Providers → Azure.');
+                                            setLoading(false);
+                                        }
                                     }}
                                     disabled={loading}
                                     className="w-full mt-3 py-3 border rounded-xl flex items-center justify-center gap-2 transition-colors hover:bg-gray-50"

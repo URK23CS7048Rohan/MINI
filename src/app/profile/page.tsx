@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -18,29 +18,78 @@ import {
     Save,
     LogOut
 } from 'lucide-react';
+import { getCurrentUser, logout, AuthUser } from '@/lib/db/auth';
 
-const profileData = {
-    name: 'Dr. Rohan',
-    email: 'rohan@medivision.ai',
-    phone: '+1 (555) 123-4567',
-    specialty: 'Dermatology',
-    hospital: 'Boston Medical Center',
-    location: 'Boston, MA',
-    joinDate: 'January 2024',
-    license: 'MD-12345-MA',
-    avatar: 'SM'
+const defaultProfileData = {
+    name: 'Loading...',
+    email: '...',
+    phone: 'Not provided',
+    specialty: 'Not provided',
+    hospital: 'Not provided',
+    location: 'Not provided',
+    joinDate: '...',
+    license: 'Not provided',
+    avatar: '...'
 };
 
 export default function ProfilePage() {
     const router = useRouter();
     const [isEditing, setIsEditing] = useState(false);
-    const [profile, setProfile] = useState(profileData);
+    const [profile, setProfile] = useState(defaultProfileData);
 
-    const handleLogout = () => {
-        if (typeof window !== 'undefined') {
-            localStorage.removeItem('medivision_user');
-            sessionStorage.clear();
-        }
+    // Use an intersection type to add the missing properties to AuthUser
+    type ExtendedUser = AuthUser & {
+        created_at: string;
+        phone: string | null;
+        specialty: string | null;
+        hospital: string | null;
+        license_number: string | null;
+    };
+
+    const [user, setUser] = useState<ExtendedUser | null>(null);
+
+    useEffect(() => {
+        const fetchUser = async () => {
+            const currentUser = await getCurrentUser() as ExtendedUser | null;
+            if (!currentUser) {
+                router.push('/login');
+                return;
+            }
+            setUser(currentUser);
+
+            // Format join date
+            const joinDate = currentUser.created_at
+                ? new Date(currentUser.created_at).toLocaleDateString('en-US', {
+                    month: 'long',
+                    year: 'numeric'
+                })
+                : 'Recent';
+
+            // Get initials for avatar
+            const initials = (currentUser.name || 'U')
+                .split(' ')
+                .map(n => n[0])
+                .join('')
+                .toUpperCase()
+                .substring(0, 2);
+
+            setProfile({
+                name: currentUser.name || 'Unknown User',
+                email: currentUser.email || 'No email',
+                phone: currentUser.phone || 'Not provided',
+                specialty: currentUser.specialty || 'General Practice',
+                hospital: currentUser.hospital || 'Not provided',
+                location: 'Not provided', // Not in current schema
+                joinDate,
+                license: currentUser.license_number || 'Not provided',
+                avatar: initials
+            });
+        };
+        fetchUser();
+    }, [router]);
+
+    const handleLogout = async () => {
+        await logout();
         router.push('/login');
     };
 

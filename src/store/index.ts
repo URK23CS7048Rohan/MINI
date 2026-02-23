@@ -18,6 +18,7 @@ interface AppState {
     // User State
     currentUser: Doctor | null;
     isAuthenticated: boolean;
+    language: string;
 
     // Active Consultation
     activeConsultation: Consultation | null;
@@ -64,6 +65,7 @@ interface AppState {
 
     // Actions
     setCurrentUser: (user: Doctor | null) => void;
+    setLanguage: (lang: string) => void;
     setActiveConsultation: (consultation: Consultation | null) => void;
     setActivePatient: (patient: Patient | null) => void;
     addDetection: (detection: Detection) => void;
@@ -108,6 +110,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     // Initial State
     currentUser: null,
     isAuthenticated: false,
+    language: typeof window !== 'undefined' ? (localStorage.getItem('medivision_language') || 'EN') : 'EN',
     activeConsultation: null,
     activePatient: null,
     detections: [],
@@ -140,6 +143,13 @@ export const useAppStore = create<AppState>((set, get) => ({
 
     // Actions
     setCurrentUser: (user) => set({ currentUser: user, isAuthenticated: !!user }),
+
+    setLanguage: (lang) => {
+        set({ language: lang });
+        if (typeof window !== 'undefined') {
+            localStorage.setItem('medivision_language', lang);
+        }
+    },
 
     setActiveConsultation: (consultation) => set({ activeConsultation: consultation }),
 

@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import {
     ArrowLeft,
     Brain,
@@ -39,6 +40,8 @@ const foundationModels = [
         capabilities: ['2D Segmentation', 'Point Prompts', 'Box Prompts', 'Mask Prompts', 'Multi-Modality'],
         metrics: { images: '4.6M', masks: '19.7M', modalities: '10+' },
         repo: 'https://github.com/openmedlab/SAM-Med2D',
+        appRoute: '/segmentation',
+        appLabel: 'Run Segmentation',
     },
     {
         id: 'sam-med-3d',
@@ -54,6 +57,8 @@ const foundationModels = [
         capabilities: ['3D Volumetric', 'CT Analysis', 'MRI Analysis', 'Organ Delineation', 'Tumor Segmentation'],
         metrics: { volumes: '21K+', organs: '130+', resolution: '128³' },
         repo: 'https://github.com/openmedlab/SAM-Med3D',
+        appRoute: '/segmentation',
+        appLabel: 'Run Segmentation',
     },
     {
         id: 'retfound',
@@ -69,6 +74,8 @@ const foundationModels = [
         capabilities: ['Diabetic Retinopathy', 'Glaucoma Screening', 'Macular Degeneration', 'CV Risk Prediction'],
         metrics: { images: '1.6M', blocks: '24', heads: '16' },
         repo: 'https://github.com/rmaphoh/RETFound_MAE',
+        appRoute: '/detection',
+        appLabel: 'Run Detection',
     },
     {
         id: 'endo-fm',
@@ -84,6 +91,8 @@ const foundationModels = [
         capabilities: ['Polyp Detection', 'Lesion Segmentation', 'Scene Classification', 'Surgical Phase Recognition'],
         metrics: { videos: '33K+', frames: '5M+', fps: '30' },
         repo: 'https://github.com/openmedlab/Endo-FM',
+        appRoute: '/detection',
+        appLabel: 'Run Detection',
     },
     {
         id: 'pulse',
@@ -99,6 +108,8 @@ const foundationModels = [
         capabilities: ['Clinical Text Generation', 'Disease Classification', 'Treatment Suggestions', 'ICD Coding', 'Differential Diagnosis'],
         metrics: { tasks: '5+', languages: '10+', parameters: '7B' },
         repo: 'https://github.com/openmedlab/PULSE',
+        appRoute: '/nlp-analysis',
+        appLabel: 'Run NLP Analysis',
     },
     {
         id: 'mixformer-vit',
@@ -114,6 +125,8 @@ const foundationModels = [
         capabilities: ['Real-Time Tracking', 'End-to-End Inference', 'Scale Invariance', 'No Post-Processing', 'Lesion Tracking'],
         metrics: { LaSOT: '73.3%', TrackingNet: '86.1%', VOT2022: '#1/41' },
         repo: 'https://github.com/MCG-NJU/MixFormer',
+        appRoute: '/tracking',
+        appLabel: 'Run Tracking',
     },
     {
         id: 'mixformer-cvt',
@@ -129,6 +142,8 @@ const foundationModels = [
         capabilities: ['Progressive Downsampling', 'Depth-wise Conv', 'Shift Invariance', 'Distortion Invariance', 'Medical Tracking'],
         metrics: { backbone: 'CvT-24W', heads: '8', stages: '3' },
         repo: 'https://github.com/MCG-NJU/MixFormer',
+        appRoute: '/tracking',
+        appLabel: 'Run Tracking',
     },
 ];
 
@@ -140,6 +155,7 @@ const pipelineStages = [
 ];
 
 export default function FoundationModelsPage() {
+    const router = useRouter();
     const [selectedModel, setSelectedModel] = useState<string | null>(null);
     const [activeTab, setActiveTab] = useState<'models' | 'pipeline' | 'benchmarks'>('models');
 
@@ -303,17 +319,31 @@ export default function FoundationModelsPage() {
                                                                 </div>
                                                             ))}
                                                         </div>
-                                                        <a
-                                                            href={model.repo}
-                                                            target="_blank"
-                                                            rel="noopener noreferrer"
-                                                            className="inline-flex items-center gap-1 mt-3 text-xs font-medium"
-                                                            style={{ color: model.color }}
-                                                            onClick={(e) => e.stopPropagation()}
-                                                        >
-                                                            <ExternalLink className="w-3 h-3" />
-                                                            View Repository
-                                                        </a>
+                                                        <div className="flex items-center gap-3 mt-4">
+                                                            <button
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    router.push(model.appRoute);
+                                                                }}
+                                                                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold text-white transition-all hover:opacity-90"
+                                                                style={{ background: model.color }}
+                                                            >
+                                                                <model.icon className="w-3.5 h-3.5" />
+                                                                {model.appLabel}
+                                                                <ChevronRight className="w-3 h-3" />
+                                                            </button>
+                                                            <a
+                                                                href={model.repo}
+                                                                target="_blank"
+                                                                rel="noopener noreferrer"
+                                                                className="inline-flex items-center gap-1 text-xs font-medium transition-colors hover:opacity-70"
+                                                                style={{ color: 'var(--silver)' }}
+                                                                onClick={(e) => e.stopPropagation()}
+                                                            >
+                                                                <ExternalLink className="w-3 h-3" />
+                                                                Paper / Repo
+                                                            </a>
+                                                        </div>
                                                     </div>
                                                 </motion.div>
                                             )}

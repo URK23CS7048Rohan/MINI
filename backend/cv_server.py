@@ -208,9 +208,12 @@ def mixformer_track(req: MixFormerRequest):
     tracker = _load_mixformer()
     
     if tracker == "fallback":
-        # Intelligent fallback tracking
+        # Image-analysis-based tracking using normalized cross-correlation
         if req.is_init and req.bbox:
+            bx, by, bw, bh = [int(v) for v in req.bbox]
+            template = img[by:by+bh, bx:bx+bw].copy()
             _mf_state["prev_bbox"] = req.bbox
+            _mf_state["template"] = template
             _mf_state["initialized"] = True
             _mf_state["frame_count"] = 0
             return {
@@ -218,7 +221,7 @@ def mixformer_track(req: MixFormerRequest):
                 "bbox": req.bbox,
                 "confidence": 1.0,
                 "frame_count": 0,
-                "model": "mixformer-cvt-fallback",
+                "model": "mixformer-templatecorr",
                 "processing_time_ms": round((time.time() - start) * 1000, 1),
             }
         
@@ -226,30 +229,57 @@ def mixformer_track(req: MixFormerRequest):
             raise HTTPException(400, "Tracker not initialized. Send is_init=true with bbox first.")
         
         _mf_state["frame_count"] += 1
-        bx, by, bw, bh = _mf_state["prev_bbox"]
+        bx, by, bw, bh = [int(v) for v in _mf_state["prev_bbox"]]
+        template = _mf_state.get("template")
         
-        # Simulate realistic tracking with small motion
-        dx = np.random.normal(0, 2)
-        dy = np.random.normal(0, 1.5)
-        dw = np.random.normal(0, 0.5)
-        dh = np.random.normal(0, 0.5)
+        # Search in a window around the previous bbox
+        search_margin = max(bw, bh)
+        sx1 = max(0, bx - search_margin)
+        sy1 = max(0, by - search_margin)
+        sx2 = min(w, bx + bw + search_margin)
+        sy2 = min(h, by + bh + search_margin)
+        search_region = img[sy1:sy2, sx1:sx2]
+        
+        # Template matching via normalized cross-correlation
+        if template is not None and template.size > 0 and search_region.shape[0] >= template.shape[0] and search_region.shape[1] >= template.shape[1]:
+            from scipy.signal import correlate2d
+            t_gray = np.mean(template, axis=2).astype(np.float32)
+            s_gray = np.mean(search_region, axis=2).astype(np.float32)
+            
+            t_gray = (t_gray - t_gray.mean()) / (t_gray.std() + 1e-8)
+            s_gray = (s_gray - s_gray.mean()) / (s_gray.std() + 1e-8)
+            
+            # Use valid mode to find best match
+            corr = correlate2d(s_gray, t_gray, mode='valid')
+            best_y, best_x = np.unravel_index(corr.argmax(), corr.shape)
+            confidence = float(corr.max()) / (t_gray.shape[0] * t_gray.shape[1])
+            confidence = max(0.5, min(0.99, confidence))
+            
+            new_x = sx1 + best_x
+            new_y = sy1 + best_y
+        else:
+            new_x, new_y = bx, by
+            confidence = 0.6
         
         new_bbox = [
-            max(0, min(bx + dx, w - bw)),
-            max(0, min(by + dy, h - bh)),
-            max(20, bw + dw),
-            max(20, bh + dh),
+            max(0, min(float(new_x), w - bw)),
+            max(0, min(float(new_y), h - bh)),
+            float(bw),
+            float(bh),
         ]
         _mf_state["prev_bbox"] = new_bbox
         
-        confidence = max(0.7, min(0.99, 0.95 - _mf_state["frame_count"] * 0.001 + np.random.normal(0, 0.02)))
+        # Update template with current crop (online learning)
+        nx, ny = int(new_bbox[0]), int(new_bbox[1])
+        if ny + bh <= h and nx + bw <= w:
+            _mf_state["template"] = img[ny:ny+bh, nx:nx+bw].copy()
         
         return {
             "success": True,
             "bbox": [round(v, 1) for v in new_bbox],
             "confidence": round(confidence, 3),
             "frame_count": _mf_state["frame_count"],
-            "model": "mixformer-cvt-fallback",
+            "model": "mixformer-templatecorr",
             "processing_time_ms": round((time.time() - start) * 1000, 1),
         }
     
@@ -325,17 +355,21 @@ def tapnet_track(req: TAPNetRequest):
     model = _load_tapnet()
     
     if model == "fallback":
-        # Intelligent fallback — simulate smooth trajectories
+        # Gradient-based optical flow tracking (no random numbers)
+        from scipy import ndimage
+        
+        # Convert frames to grayscale
+        grays = [np.mean(f, axis=2).astype(np.float32) for f in frames]
+        
         trajectories = []
         for qp in req.query_points:
             qx, qy = float(qp["x"]), float(qp["y"])
             q_frame = int(qp.get("frame_idx", 0))
             
-            # Generate smooth trajectory with random walk
+            # Extract patch descriptor at query point
+            patch_r = 12
             points = []
             cx, cy = qx, qy
-            vx = np.random.normal(0, 1.5)
-            vy = np.random.normal(0, 1.0)
             
             for f_idx in range(n_frames):
                 if f_idx == q_frame:
@@ -346,22 +380,64 @@ def tapnet_track(req: TAPNetRequest):
                         "confidence": 1.0,
                     })
                     cx, cy = qx, qy
-                else:
-                    # Smooth trajectory with some noise
-                    dist = abs(f_idx - q_frame)
-                    cx = qx + vx * (f_idx - q_frame) + np.random.normal(0, 0.5 * dist)
-                    cy = qy + vy * (f_idx - q_frame) + np.random.normal(0, 0.3 * dist)
-                    cx = max(0, min(w - 1, cx))
-                    cy = max(0, min(h - 1, cy))
-                    conf = max(0.5, 0.98 - dist * 0.03 + np.random.normal(0, 0.02))
-                    visible = conf > 0.6
-                    
-                    points.append({
-                        "x": round(cx, 1),
-                        "y": round(cy, 1),
-                        "visible": visible,
-                        "confidence": round(conf, 3),
-                    })
+                    continue
+                
+                # Compute displacement using gradient-based matching
+                prev_idx = max(0, f_idx - 1) if f_idx > q_frame else min(n_frames - 1, f_idx + 1)
+                if prev_idx == f_idx:
+                    prev_idx = q_frame
+                
+                prev_gray = grays[prev_idx]
+                curr_gray = grays[f_idx]
+                
+                # Extract patch around current position
+                px1 = max(0, int(cx) - patch_r)
+                py1 = max(0, int(cy) - patch_r)
+                px2 = min(w, int(cx) + patch_r)
+                py2 = min(h, int(cy) + patch_r)
+                
+                if px2 - px1 < 5 or py2 - py1 < 5:
+                    points.append({"x": round(cx, 1), "y": round(cy, 1), "visible": False, "confidence": 0.3})
+                    continue
+                
+                prev_patch = prev_gray[py1:py2, px1:px2]
+                
+                # Search in a small neighborhood for best match
+                search_r = 8
+                best_dx, best_dy = 0, 0
+                best_score = -1
+                
+                for dy in range(-search_r, search_r + 1, 2):
+                    for dx in range(-search_r, search_r + 1, 2):
+                        nx = px1 + dx
+                        ny = py1 + dy
+                        nx2 = nx + (px2 - px1)
+                        ny2 = ny + (py2 - py1)
+                        if nx < 0 or ny < 0 or nx2 > w or ny2 > h:
+                            continue
+                        curr_patch = curr_gray[ny:ny2, nx:nx2]
+                        
+                        # Normalized cross-correlation
+                        p1 = prev_patch - prev_patch.mean()
+                        p2 = curr_patch - curr_patch.mean()
+                        denom = (np.sqrt((p1**2).sum()) * np.sqrt((p2**2).sum()))
+                        if denom < 1e-8:
+                            continue
+                        score = float((p1 * p2).sum() / denom)
+                        if score > best_score:
+                            best_score = score
+                            best_dx, best_dy = dx, dy
+                
+                cx = max(0, min(w - 1, cx + best_dx))
+                cy = max(0, min(h - 1, cy + best_dy))
+                confidence = max(0.3, min(0.99, best_score))
+                
+                points.append({
+                    "x": round(cx, 1),
+                    "y": round(cy, 1),
+                    "visible": confidence > 0.4,
+                    "confidence": round(confidence, 3),
+                })
             
             trajectories.append({
                 "query_point": {"x": qx, "y": qy, "frame_idx": q_frame},
@@ -374,7 +450,7 @@ def tapnet_track(req: TAPNetRequest):
             "num_frames": n_frames,
             "num_points": len(req.query_points),
             "image_size": {"width": w, "height": h},
-            "model": "tapir-fallback",
+            "model": "tapir-optflow",
             "processing_time_ms": round((time.time() - start) * 1000, 1),
         }
     
@@ -548,29 +624,52 @@ def live_detect(req: LiveDetectRequest):
             })
     
     elif req.mode == "track" and req.regions:
-        # Track specified regions using MixFormer-style tracking
+        # Track regions using template matching on the actual image
+        from scipy.signal import correlate2d
+        gray = np.mean(img, axis=2).astype(np.float32)
+        
         for i, region in enumerate(req.regions):
-            bx, by = float(region["x"]), float(region["y"])
-            bw, bh = float(region["w"]), float(region["h"])
+            bx, by = int(region["x"]), int(region["y"])
+            bw, bh = int(region["w"]), int(region["h"])
             
-            dx = np.random.normal(0, 1.5)
-            dy = np.random.normal(0, 1.0)
+            # Extract template from region
+            t = gray[by:by+bh, bx:bx+bw]
+            if t.size == 0 or t.shape[0] < 5 or t.shape[1] < 5:
+                detections.append({
+                    "id": _live_state["frame_count"] * 100 + i,
+                    "label": f"Tracked_{i+1}",
+                    "confidence": 0.5,
+                    "x": bx, "y": by, "width": bw, "height": bh,
+                    "timestamp": f"frame_{_live_state['frame_count']}",
+                })
+                continue
             
-            new_bbox = [
-                max(0, min(bx + dx, w - bw)),
-                max(0, min(by + dy, h - bh)),
-                bw,
-                bh,
-            ]
+            # Search in expanded region
+            margin = max(bw, bh) // 2
+            sx1, sy1 = max(0, bx - margin), max(0, by - margin)
+            sx2, sy2 = min(w, bx + bw + margin), min(h, by + bh + margin)
+            search = gray[sy1:sy2, sx1:sx2]
+            
+            if search.shape[0] >= t.shape[0] and search.shape[1] >= t.shape[1]:
+                t_norm = (t - t.mean()) / (t.std() + 1e-8)
+                s_norm = (search - search.mean()) / (search.std() + 1e-8)
+                corr = correlate2d(s_norm, t_norm, mode='valid')
+                best_y, best_x = np.unravel_index(corr.argmax(), corr.shape)
+                confidence = float(corr.max()) / (t.shape[0] * t.shape[1])
+                confidence = max(0.5, min(0.99, confidence))
+                new_x, new_y = sx1 + best_x, sy1 + best_y
+            else:
+                new_x, new_y = bx, by
+                confidence = 0.6
             
             detections.append({
                 "id": _live_state["frame_count"] * 100 + i,
                 "label": f"Tracked_{i+1}",
-                "confidence": round(0.92 + np.random.normal(0, 0.03), 3),
-                "x": round(new_bbox[0]),
-                "y": round(new_bbox[1]),
-                "width": round(new_bbox[2]),
-                "height": round(new_bbox[3]),
+                "confidence": round(confidence, 3),
+                "x": int(new_x),
+                "y": int(new_y),
+                "width": bw,
+                "height": bh,
                 "timestamp": f"frame_{_live_state['frame_count']}",
             })
     

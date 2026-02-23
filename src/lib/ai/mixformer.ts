@@ -187,35 +187,33 @@ export class MixFormerTracker {
         this.trackingHistory = [];
         this.frameCount = 0;
 
+        // Strip data URL prefix if present
+        const base64Data = templateImage.includes(',') ? templateImage.split(',')[1] : templateImage;
+
         try {
-            const response = await fetch(`${this.baseUrl}/init`, {
+            const response = await fetch('/api/cv', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    template: templateImage,
-                    bbox: boundingBox,
-                    config: {
-                        backbone: this.config.backboneType,
-                        num_stages: this.config.numStages,
-                    },
+                    action: 'mixformer',
+                    frame: base64Data,
+                    is_init: true,
+                    bbox: [boundingBox.x, boundingBox.y, boundingBox.width, boundingBox.height],
                 }),
             });
 
             if (response.ok) {
                 const data = await response.json();
-                this.templateFeatures = data.features || [];
-                this.isInitialized = true;
-                return;
+                if (data.success) {
+                    this.isInitialized = true;
+                    return;
+                }
             }
         } catch (error) {
-            console.log('MixFormer API not available, using simulation');
+            console.warn('MixFormer backend unavailable for init:', error);
         }
 
-        // Simulation fallback — generate synthetic template features
-        const numTokens = Math.floor((this.config.templateSize / 16) ** 2);
-        this.templateFeatures = Array.from({ length: numTokens }, () =>
-            Array.from({ length: this.config.embeddingDim }, () => Math.random() * 2 - 1)
-        );
+        // Mark as initialized even if backend failed — track() will handle the fallback
         this.isInitialized = true;
     }
 
@@ -230,76 +228,76 @@ export class MixFormerTracker {
         const startTime = performance.now();
         this.frameCount++;
 
+        // Strip data URL prefix if present
+        const base64Data = searchFrame.includes(',') ? searchFrame.split(',')[1] : searchFrame;
+
         try {
-            const response = await fetch(`${this.baseUrl}/track`, {
+            const response = await fetch('/api/cv', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    frame: searchFrame,
-                    frame_index: this.frameCount,
+                    action: 'mixformer',
+                    frame: base64Data,
+                    is_init: false,
                 }),
             });
 
             if (response.ok) {
                 const data = await response.json();
-                const result: TrackingResult = {
-                    id: uuidv4(),
-                    modelType: this.config.backboneType === 'mixcvt' ? 'mixformer_cvt' : 'mixformer_vit',
-                    frameIndex: this.frameCount,
-                    boundingBox: data.bbox as BoundingBox,
-                    confidence: data.confidence as number,
-                    velocity: data.velocity || { dx: 0, dy: 0 },
-                    sizeChange: data.size_change || { dw: 0, dh: 0 },
-                    isOccluded: data.occluded || false,
-                    trackingQuality: this.assessTrackingQuality(data.confidence as number),
-                    timestamp: new Date().toISOString(),
-                };
-                this.trackingHistory.push(result);
-                return result;
+                if (data.success && data.bbox) {
+                    const bbox = data.bbox as number[];
+                    const prevBBox = this.trackingHistory.length > 0
+                        ? this.trackingHistory[this.trackingHistory.length - 1].boundingBox
+                        : this.templateBBox;
+
+                    const newBBox: BoundingBox = {
+                        x: bbox[0],
+                        y: bbox[1],
+                        width: bbox[2],
+                        height: bbox[3],
+                    };
+
+                    const confidence = (data.confidence as number) || 0.8;
+                    const dx = newBBox.x - prevBBox.x;
+                    const dy = newBBox.y - prevBBox.y;
+                    const dw = newBBox.width - prevBBox.width;
+                    const dh = newBBox.height - prevBBox.height;
+
+                    const result: TrackingResult = {
+                        id: uuidv4(),
+                        modelType: this.config.backboneType === 'mixcvt' ? 'mixformer_cvt' : 'mixformer_vit',
+                        frameIndex: this.frameCount,
+                        boundingBox: newBBox,
+                        confidence,
+                        velocity: { dx, dy },
+                        sizeChange: { dw, dh },
+                        isOccluded: confidence < 0.5,
+                        trackingQuality: this.assessTrackingQuality(confidence),
+                        timestamp: new Date().toISOString(),
+                    };
+                    this.trackingHistory.push(result);
+                    return result;
+                }
             }
         } catch (error) {
-            // Fall through to simulation
+            console.warn('MixFormer backend unavailable for track:', error);
         }
 
-        return this.simulateTracking(startTime);
-    }
-
-    private simulateTracking(startTime: number): TrackingResult {
+        // If backend is down, return a stationary result (no random)
         const prevBBox = this.trackingHistory.length > 0
             ? this.trackingHistory[this.trackingHistory.length - 1].boundingBox
-            : this.templateBBox!;
-
-        // Simulate realistic motion with slight drift and noise
-        const dx = (Math.random() - 0.5) * 8;
-        const dy = (Math.random() - 0.5) * 6;
-        const dw = (Math.random() - 0.5) * 4;
-        const dh = (Math.random() - 0.5) * 4;
-
-        const newBBox: BoundingBox = {
-            x: Math.max(0, prevBBox.x + dx),
-            y: Math.max(0, prevBBox.y + dy),
-            width: Math.max(20, prevBBox.width + dw),
-            height: Math.max(20, prevBBox.height + dh),
-        };
-
-        // Confidence gradually drifts with occasional recovery
-        const baseConfidence = 0.90;
-        const drift = this.frameCount * 0.001;
-        const noise = (Math.random() - 0.5) * 0.08;
-        const confidence = Math.max(0.3, Math.min(0.99, baseConfidence - drift + noise));
-
-        const isOccluded = confidence < 0.5;
+            : this.templateBBox;
 
         const result: TrackingResult = {
             id: uuidv4(),
             modelType: this.config.backboneType === 'mixcvt' ? 'mixformer_cvt' : 'mixformer_vit',
             frameIndex: this.frameCount,
-            boundingBox: newBBox,
-            confidence,
-            velocity: { dx, dy },
-            sizeChange: { dw, dh },
-            isOccluded,
-            trackingQuality: this.assessTrackingQuality(confidence),
+            boundingBox: { ...prevBBox },
+            confidence: 0.5,
+            velocity: { dx: 0, dy: 0 },
+            sizeChange: { dw: 0, dh: 0 },
+            isOccluded: true,
+            trackingQuality: 'lost',
             timestamp: new Date().toISOString(),
         };
 

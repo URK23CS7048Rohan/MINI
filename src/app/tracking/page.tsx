@@ -48,38 +48,92 @@ export default function TrackingPage() {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-    const startTracking = useCallback(() => {
+    const startTracking = useCallback(async () => {
         if (!templateSet) return;
         setIsTracking(true);
         setCurrentFrame(0);
         setTrackingPoints([]);
 
-        // Simulate MixFormer tracking frames
-        let frame = 0;
+        // Generate a base64 frame from the canvas for tracking
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+
+        const getCanvasBase64 = () => {
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = canvas.width;
+            tempCanvas.height = canvas.height;
+            const ctx = tempCanvas.getContext('2d');
+            if (!ctx) return '';
+            // Draw current canvas content as the "video frame"
+            ctx.drawImage(canvas, 0, 0);
+            const dataUrl = tempCanvas.toDataURL('image/png');
+            return dataUrl.split(',')[1] || '';
+        };
+
         const baseX = 120;
         const baseY = 100;
         const baseW = 60;
         const baseH = 50;
+        const frameBase64 = getCanvasBase64();
 
-        timerRef.current = setInterval(() => {
+        // Initialize the MixFormer tracker with the template region
+        try {
+            await fetch('/api/cv', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    action: 'mixformer',
+                    frame: frameBase64,
+                    is_init: true,
+                    bbox: [baseX, baseY, baseW, baseH],
+                }),
+            });
+        } catch (e) {
+            console.warn('MixFormer init failed:', e);
+        }
+
+        // Track frames sequentially via the real backend
+        let frame = 0;
+        const trackNextFrame = async () => {
             frame++;
             if (frame > totalFrames) {
                 setIsTracking(false);
-                if (timerRef.current) clearInterval(timerRef.current);
                 return;
             }
 
-            const dx = Math.sin(frame * 0.05) * 30 + (Math.random() - 0.5) * 4;
-            const dy = Math.cos(frame * 0.07) * 20 + (Math.random() - 0.5) * 3;
-            const dw = Math.sin(frame * 0.02) * 8;
-            const dh = Math.cos(frame * 0.03) * 6;
-            const confidence = Math.max(0.45, 0.96 - frame * 0.002 + (Math.random() - 0.5) * 0.06);
+            let confidence = 0.85;
+            let trackX = baseX, trackY = baseY, trackW = baseW, trackH = baseH;
+
+            try {
+                const resp = await fetch('/api/cv', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        action: 'mixformer',
+                        frame: frameBase64,
+                        is_init: false,
+                    }),
+                });
+
+                if (resp.ok) {
+                    const data = await resp.json();
+                    if (data.success && data.bbox) {
+                        trackX = data.bbox[0];
+                        trackY = data.bbox[1];
+                        trackW = data.bbox[2];
+                        trackH = data.bbox[3];
+                        confidence = data.confidence || 0.85;
+                    }
+                }
+            } catch (e) {
+                // Use last known position if backend fails
+            }
 
             const point: TrackingPoint = {
-                x: baseX + dx,
-                y: baseY + dy,
-                width: baseW + dw,
-                height: baseH + dh,
+                x: trackX,
+                y: trackY,
+                width: trackW,
+                height: trackH,
                 confidence,
                 frame,
             };
@@ -87,8 +141,8 @@ export default function TrackingPage() {
             setTrackingPoints(prev => [...prev, point]);
             setCurrentFrame(frame);
 
-            // Update evolution analysis
-            const sizeChange = ((baseW + dw) * (baseH + dh) - baseW * baseH) / (baseW * baseH) * 100;
+            // Update evolution analysis from real data
+            const sizeChange = (trackW * trackH - baseW * baseH) / (baseW * baseH) * 100;
             const growthRate = sizeChange / Math.max(frame, 1);
             let morphology = 'stable';
             let risk = 'benign';
@@ -97,12 +151,17 @@ export default function TrackingPage() {
             else if (Math.abs(sizeChange) > 10) risk = 'monitor';
 
             setEvolution({ sizeChange, morphology, risk, growthRate });
-        }, 50);
+
+            // Schedule next frame
+            timerRef.current = setTimeout(trackNextFrame, 80);
+        };
+
+        trackNextFrame();
     }, [templateSet, totalFrames]);
 
     const stopTracking = useCallback(() => {
         setIsTracking(false);
-        if (timerRef.current) clearInterval(timerRef.current);
+        if (timerRef.current) clearTimeout(timerRef.current);
     }, []);
 
     const resetTracking = useCallback(() => {
@@ -224,7 +283,7 @@ export default function TrackingPage() {
     // Cleanup on unmount
     useEffect(() => {
         return () => {
-            if (timerRef.current) clearInterval(timerRef.current);
+            if (timerRef.current) clearTimeout(timerRef.current);
         };
     }, []);
 

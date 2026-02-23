@@ -154,51 +154,70 @@ export function getDetectionCategory(type: DetectionType): DetectionCategory {
     return categoryMap[type];
 }
 
-// Simulate AI detection on video frame
+// AI detection on video frame — calls real CV backend
 export async function analyzeFrame(
     imageData: string,
     modelType: keyof typeof DETECTION_MODELS = 'skin_disease'
 ): Promise<Detection[]> {
-    // Simulate API call delay
-    await new Promise(resolve => setTimeout(resolve, 500 + Math.random() * 500));
-
     const model = DETECTION_MODELS[modelType];
-    const detections: Detection[] = [];
 
-    // Simulate random detections for demo
-    const shouldDetect = Math.random() > 0.6;
-    if (shouldDetect) {
-        const numDetections = Math.floor(Math.random() * 3) + 1;
+    // Strip data URL prefix if present for the backend
+    const base64Data = imageData.includes(',') ? imageData.split(',')[1] : imageData;
 
-        for (let i = 0; i < numDetections; i++) {
-            const category = model.categories[Math.floor(Math.random() * model.categories.length)];
-            const confidence = 0.7 + Math.random() * 0.25;
+    try {
+        const response = await fetch('/api/cv', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                action: 'live-detect',
+                frame: base64Data,
+                mode: 'detect',
+            }),
+        });
 
-            const detection: Detection = {
-                id: uuidv4(),
-                timestamp: new Date().toISOString(),
-                type: modelType as DetectionType,
-                category: getDetectionCategory(modelType as DetectionType),
-                label: category.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
-                confidence,
-                severity: assessSeverity(modelType as DetectionType, category, confidence),
-                boundingBox: {
-                    x: Math.random() * 0.6 + 0.1,
-                    y: Math.random() * 0.6 + 0.1,
-                    width: Math.random() * 0.2 + 0.1,
-                    height: Math.random() * 0.2 + 0.1,
-                },
-                imageSnapshot: imageData,
-                analysis: generateAnalysis(category, confidence),
-                recommendations: generateRecommendations(category),
-                relatedConditions: getRelatedConditions(category),
-            };
+        if (response.ok) {
+            const data = await response.json();
 
-            detections.push(detection);
+            if (data.success && data.detections) {
+                return data.detections.map((d: Record<string, unknown>) => {
+                    // Map backend labels to model-specific categories
+                    const backendLabel = (d.label as string) || 'Unknown';
+                    const matchedCategory = model.categories.find(c =>
+                        backendLabel.toLowerCase().includes(c.replace(/_/g, ' '))
+                    ) || model.categories[0];
+                    const label = backendLabel.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+                    const confidence = (d.confidence as number) || 0.8;
+
+                    const detection: Detection = {
+                        id: uuidv4(),
+                        timestamp: new Date().toISOString(),
+                        type: modelType as DetectionType,
+                        category: getDetectionCategory(modelType as DetectionType),
+                        label,
+                        confidence,
+                        severity: assessSeverity(modelType as DetectionType, matchedCategory, confidence),
+                        boundingBox: {
+                            x: ((d.x as number) || 0) / ((data.image_size?.width as number) || 640),
+                            y: ((d.y as number) || 0) / ((data.image_size?.height as number) || 480),
+                            width: ((d.width as number) || 50) / ((data.image_size?.width as number) || 640),
+                            height: ((d.height as number) || 50) / ((data.image_size?.height as number) || 480),
+                        },
+                        imageSnapshot: imageData,
+                        analysis: generateAnalysis(matchedCategory, confidence),
+                        recommendations: generateRecommendations(matchedCategory),
+                        relatedConditions: getRelatedConditions(matchedCategory),
+                    };
+
+                    return detection;
+                });
+            }
         }
+    } catch (error) {
+        console.warn('CV backend unavailable for detection:', error);
     }
 
-    return detections;
+    // Fallback: return empty if backend is down (no fake data)
+    return [];
 }
 
 // Generate AI analysis text

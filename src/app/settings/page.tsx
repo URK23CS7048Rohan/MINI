@@ -13,6 +13,7 @@ import {
     ArrowLeft,
     ChevronRight
 } from 'lucide-react';
+import { useAppStore } from '@/store';
 
 interface SettingsItem {
     name: string;
@@ -73,6 +74,16 @@ export default function SettingsPage() {
         'SMS Alerts': false,
     });
 
+    const { language, setLanguage } = useAppStore();
+
+    const languages = [
+        { code: 'EN', name: 'English (US)' },
+        { code: 'ES', name: 'Español' },
+        { code: 'FR', name: 'Français' },
+        { code: 'HI', name: 'Hindi' },
+        { code: 'ZH', name: '中文' }
+    ];
+
     return (
         <div className="min-h-screen" style={{ background: 'var(--cream)' }}>
             <div className="max-w-4xl mx-auto p-6 lg:p-8">
@@ -120,9 +131,23 @@ export default function SettingsPage() {
                                             <div className="font-medium" style={{ color: 'var(--charcoal)' }}>
                                                 {item.name}
                                             </div>
-                                            <div className="text-sm" style={{ color: 'var(--silver)' }}>
-                                                {item.description}
-                                            </div>
+                                            {item.name === 'Language' ? (
+                                                <select
+                                                    value={language}
+                                                    onChange={(e) => setLanguage(e.target.value)}
+                                                    onClick={(e) => e.stopPropagation()}
+                                                    className="bg-transparent text-sm font-medium outline-none cursor-pointer mt-1"
+                                                    style={{ color: 'var(--sage)' }}
+                                                >
+                                                    {languages.map(lang => (
+                                                        <option key={lang.code} value={lang.code}>{lang.name}</option>
+                                                    ))}
+                                                </select>
+                                            ) : (
+                                                <div className="text-sm" style={{ color: 'var(--silver)' }}>
+                                                    {item.description}
+                                                </div>
+                                            )}
                                         </div>
                                         {item.toggle !== undefined ? (
                                             <button

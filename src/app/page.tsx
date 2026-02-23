@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { useState, useEffect, useRef } from 'react';
+import { motion, AnimatePresence, useScroll, useTransform } from 'framer-motion';
 import Link from 'next/link';
 import {
     ArrowRight,
@@ -34,7 +34,40 @@ const fadeInUp = {
     visible: { opacity: 1, y: 0, transition: { duration: 0.7, ease: [0.4, 0, 0.2, 1] } }
 };
 
+const scaleIn = {
+    hidden: { opacity: 0, scale: 0.9 },
+    visible: { opacity: 1, scale: 1, transition: { duration: 0.5, ease: [0.4, 0, 0.2, 1] } }
+};
+
+const blurInUp = {
+    hidden: { opacity: 0, y: 40, filter: 'blur(10px)' },
+    visible: {
+        opacity: 1,
+        y: 0,
+        filter: 'blur(0px)',
+        transition: { duration: 0.8, ease: [0.16, 1, 0.3, 1] }
+    }
+};
+
+const skewUp = {
+    hidden: { opacity: 0, y: 50, skewY: 3 },
+    visible: {
+        opacity: 1,
+        y: 0,
+        skewY: 0,
+        transition: { duration: 0.7, ease: [0.16, 1, 0.3, 1] }
+    }
+};
+
 const staggerContainer = {
+    hidden: { opacity: 0 },
+    visible: {
+        opacity: 1,
+        transition: { staggerChildren: 0.15, delayChildren: 0.1 }
+    }
+};
+
+const textRevealStagger = {
     hidden: { opacity: 0 },
     visible: {
         opacity: 1,
@@ -42,14 +75,15 @@ const staggerContainer = {
     }
 };
 
-const scaleIn = {
-    hidden: { opacity: 0, scale: 0.9 },
-    visible: { opacity: 1, scale: 1, transition: { duration: 0.5, ease: [0.4, 0, 0.2, 1] } }
-};
-
 export default function Home() {
     const [isScrolled, setIsScrolled] = useState(false);
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+    const [activeFeature, setActiveFeature] = useState(0);
+
+    // Parallax scroll effects for the hero content
+    const { scrollY } = useScroll();
+    const heroY = useTransform(scrollY, [0, 1000], [0, 300]);
+    const heroOpacity = useTransform(scrollY, [200, 800], [1, 0]);
 
     useEffect(() => {
         const handleScroll = () => {
@@ -60,69 +94,47 @@ export default function Home() {
     }, []);
 
     return (
-        <div className="min-h-screen overflow-x-hidden">
-            {/* Background Blobs */}
-            <div className="fixed inset-0 pointer-events-none overflow-hidden">
-                <motion.div
-                    className="blob blob-sage shape-organic w-[600px] h-[600px] -top-48 -right-48"
-                    animate={{
-                        x: [0, 30, 0],
-                        y: [0, -20, 0],
-                        rotate: [0, 10, 0]
-                    }}
-                    transition={{ duration: 20, repeat: Infinity, ease: "easeInOut" }}
-                />
-                <motion.div
-                    className="blob blob-sky shape-organic w-[500px] h-[500px] top-1/3 -left-48"
-                    animate={{
-                        x: [0, -20, 0],
-                        y: [0, 30, 0],
-                        rotate: [0, -15, 0]
-                    }}
-                    transition={{ duration: 25, repeat: Infinity, ease: "easeInOut" }}
-                />
-                <motion.div
-                    className="blob blob-lavender shape-organic w-[400px] h-[400px] bottom-1/4 right-1/4"
-                    animate={{
-                        x: [0, 20, 0],
-                        y: [0, -30, 0],
-                        rotate: [0, 20, 0]
-                    }}
-                    transition={{ duration: 18, repeat: Infinity, ease: "easeInOut" }}
-                />
-            </div>
+        <div className="min-h-screen overflow-x-hidden relative" style={{ background: 'var(--cream)' }}>
+            {/* Clean Neo-Brutalist Dotted Grid Background */}
+            <div
+                className="fixed inset-0 pointer-events-none z-[-1]"
+                style={{
+                    backgroundImage: 'radial-gradient(var(--mist) 1.5px, transparent 1.5px)',
+                    backgroundSize: '24px 24px',
+                }}
+            />
 
             {/* Navigation */}
             <motion.nav
                 initial={{ y: -100 }}
                 animate={{ y: 0 }}
-                className={`nav-main ${isScrolled ? 'scrolled' : ''}`}
+                className={`fixed top-0 w-full z-50 flex items-center justify-between px-4 lg:px-8 py-4 transition-all duration-200 ${isScrolled ? 'bg-cream border-b-4 border-charcoal' : 'bg-transparent'}`}
             >
-                <Link href="/" className="nav-logo">
-                    <span className="font-display">Medi</span>
-                    <span className="text-highlight-sage">Vision</span>
+                <Link href="/" className="font-bold text-2xl uppercase tracking-tighter flex items-center gap-1">
+                    <span className="bg-charcoal text-white px-2 py-0.5 border-2 border-charcoal">MEDI</span>
+                    <span className="text-charcoal bg-sage px-2 py-0.5 border-2 border-charcoal">VISION</span>
                 </Link>
 
-                <div className="nav-links hidden lg:flex">
-                    <Link href="#features" className="nav-link">Features</Link>
-                    <Link href="#models" className="nav-link">AI Models</Link>
-                    <Link href="#collaboration" className="nav-link">Collaboration</Link>
-                    <Link href="#pricing" className="nav-link">Pricing</Link>
+                <div className="hidden lg:flex items-center gap-8 font-bold uppercase tracking-wider text-sm">
+                    <Link href="#features" className="hover:text-sage transition-colors">Features</Link>
+                    <Link href="#models" className="hover:text-sage transition-colors">AI Models</Link>
+                    <Link href="#collaboration" className="hover:text-sage transition-colors">Collaboration</Link>
+                    <Link href="#pricing" className="hover:text-sage transition-colors">Pricing</Link>
                 </div>
 
-                <div className="flex items-center gap-md">
-                    <Link href="/login" className="btn btn-ghost hidden sm:flex">
+                <div className="flex items-center gap-4">
+                    <Link href="/login" className="hidden sm:flex font-bold uppercase tracking-wider text-sm hover:underline decoration-2 underline-offset-4">
                         Sign In
                     </Link>
-                    <Link href="/login?register=true" className="btn btn-primary">
+                    <Link href="/login?register=true" className="brutalist-button py-2 px-4 text-sm flex items-center gap-2">
                         Get Started
-                        <ArrowRight className="w-4 h-4" />
+                        <ArrowRight className="w-4 h-4 stroke-[3]" />
                     </Link>
                     <button
-                        className="lg:hidden btn btn-icon btn-secondary"
+                        className="lg:hidden brutalist-border bg-white p-2"
                         onClick={() => setMobileMenuOpen(true)}
                     >
-                        <Menu className="w-5 h-5" />
+                        <Menu className="w-5 h-5 stroke-[3]" />
                     </button>
                 </div>
             </motion.nav>
@@ -152,63 +164,79 @@ export default function Home() {
                 )}
             </AnimatePresence>
 
-            {/* Hero Section */}
-            <section className="hero-section">
-                <div className="container max-w-7xl mx-auto">
-                    <motion.div
-                        variants={staggerContainer}
-                        initial="hidden"
-                        animate="visible"
-                        className="text-center max-w-5xl mx-auto"
-                    >
+            {/* Hero Section - Neo-Brutalist Redesign */}
+            <section className="relative pt-32 pb-20 lg:pt-48 lg:pb-32 z-10">
 
+                {/* Infinite Marquee Top */}
+                <div className="w-full relative overflow-hidden bg-charcoal text-white py-3 border-y-4 border-charcoal transform -rotate-2 scale-105 z-20 shadow-2xl">
+                    <div className="flex whitespace-nowrap animate-marquee">
+                        <span className="text-xl font-bold uppercase tracking-widest mx-4">✦ REAL-TIME DIAGNOSTICS ✦ AI CO-PILOT ✦ SURGERY STREAMING ✦ MULTI-AGENT ANALYSIS ✦ 98.5% ACCURACY</span>
+                        <span className="text-xl font-bold uppercase tracking-widest mx-4">✦ REAL-TIME DIAGNOSTICS ✦ AI CO-PILOT ✦ SURGERY STREAMING ✦ MULTI-AGENT ANALYSIS ✦ 98.5% ACCURACY</span>
+                    </div>
+                </div>
 
-                        {/* Main Heading */}
-                        <motion.h1 variants={fadeInUp} className="heading-display heading-display-xl mb-8">
-                            <span className="text-highlight">Create.</span>{' '}
-                            <span className="text-highlight-sage">Diagnose.</span>
-                            <br />
-                            <span className="text-highlight-coral">Heal.</span>{' '}
-                            <span className="text-highlight-outline">Together.</span>
-                        </motion.h1>
-
-                        {/* Subtitle */}
-                        <motion.p variants={fadeInUp} className="text-body text-body-lg max-w-2xl mx-auto mb-12">
-                            The future of clinical collaboration. Real-time AI diagnostics,
-                            multi-agent clinical co-pilot, and intelligent documentation
-                            that transforms every consultation.
-                        </motion.p>
-
-                        {/* CTA Buttons */}
-                        <motion.div variants={fadeInUp} className="flex flex-wrap justify-center gap-md mb-16">
-                            <Link href="/dashboard" className="btn btn-primary">
-                                <Play className="w-4 h-4" />
-                                Start Free Trial
-                            </Link>
-                            <Link href="#demo" className="btn btn-secondary">
-                                Watch Demo
-                                <ArrowUpRight className="w-4 h-4" />
-                            </Link>
-                        </motion.div>
-
-                        {/* Stats Row */}
+                <div className="container max-w-7xl mx-auto px-4 mt-16 relative z-10">
+                    <motion.div style={{ y: heroY, opacity: heroOpacity }} className="w-full">
                         <motion.div
-                            variants={fadeInUp}
-                            className="stats-row"
+                            variants={textRevealStagger}
+                            initial="hidden"
+                            animate="visible"
+                            className="max-w-6xl mx-auto"
                         >
-                            {[
-                                { value: '25+', label: 'AI Models' },
-                                { value: '98.5%', label: 'Accuracy' },
-                                { value: '50K+', label: 'Consultations' },
-                                { value: '30+', label: 'Languages' }
-                            ].map((stat, i) => (
-                                <div key={i} className="text-center">
-                                    <div className="stat-number">{stat.value}</div>
-                                    <div className="stat-label">{stat.label}</div>
-                                </div>
-                            ))}
+                            <h1 className="text-[11vw] lg:text-[120px] xl:text-[140px] leading-[0.85] font-bold uppercase tracking-tighter mb-6 lg:mb-10 flex flex-wrap gap-x-4 lg:gap-x-8 gap-y-1 items-end justify-start">
+                                <span className="text-reveal-mask inline-block overflow-hidden"><motion.span variants={skewUp} className="inline-block text-charcoal">CREATE.</motion.span></span>
+                                <span className="text-reveal-mask inline-block overflow-hidden"><motion.span variants={skewUp} className="inline-block text-transparent" style={{ WebkitTextStroke: 'max(2px, 0.2vw) var(--charcoal)' }}>DIAGNOSE.</motion.span></span>
+                                <div className="w-full h-0 hidden md:block lg:hidden"></div>
+                                <span className="text-reveal-mask inline-flex overflow-hidden items-center"><motion.span variants={skewUp} className="inline-block text-sage bg-charcoal px-3 py-1 lg:px-4 lg:py-2 leading-none mt-1 lg:mt-2">HEAL.</motion.span></span>
+                                <span className="text-reveal-mask inline-block overflow-hidden"><motion.span variants={skewUp} className="inline-block text-charcoal">TOGETHER.</motion.span></span>
+                            </h1>
+
+                            {/* Subtitle Bar */}
+                            <div className="flex flex-col md:flex-row gap-8 items-start md:items-center justify-between border-t-4 border-charcoal pt-8 mb-16">
+                                <motion.p variants={blurInUp} className="text-xl md:text-2xl font-medium max-w-2xl text-charcoal uppercase tracking-wide">
+                                    The future of clinical collaboration. Real-time AI diagnostics & intelligent documentation that transforms every consultation.
+                                </motion.p>
+
+                                {/* CTA Buttons */}
+                                <motion.div variants={blurInUp} className="flex gap-4 shrink-0">
+                                    <Link href="/dashboard" className="brutalist-button flex items-center gap-2">
+                                        <Play className="w-5 h-5 fill-current" />
+                                        Start Trial
+                                    </Link>
+                                    <Link href="#demo" className="brutalist-button-outline hidden sm:flex items-center gap-2">
+                                        Demo
+                                        <ArrowUpRight className="w-5 h-5" />
+                                    </Link>
+                                </motion.div>
+                            </div>
+
+                            {/* Stats Row - Brutalist Cards */}
+                            <motion.div
+                                variants={fadeInUp}
+                                className="grid grid-cols-2 md:grid-cols-4 gap-4"
+                            >
+                                {[
+                                    { value: '25+', label: 'AI Models', color: 'bg-sage' },
+                                    { value: '98.5%', label: 'Accuracy', color: 'bg-lavender' },
+                                    { value: '50K+', label: 'Consults', color: 'bg-sky' },
+                                    { value: '30+', label: 'Languages', color: 'bg-coral-light' }
+                                ].map((stat, i) => (
+                                    <div key={i} className={`brutalist-border ${stat.color} p-6 flex flex-col justify-between hover:bg-charcoal hover:text-white transition-colors cursor-pointer min-h-[160px]`}>
+                                        <div className="text-5xl md:text-6xl font-bold tracking-tighter">{stat.value}</div>
+                                        <div className="text-sm font-bold uppercase tracking-widest">{stat.label}</div>
+                                    </div>
+                                ))}
+                            </motion.div>
                         </motion.div>
                     </motion.div>
+                </div>
+
+                {/* Infinite Marquee Bottom */}
+                <div className="w-full absolute bottom-[-50px] overflow-hidden bg-charcoal text-white py-3 border-y-4 border-charcoal transform rotate-2 scale-105 z-0">
+                    <div className="flex whitespace-nowrap animate-marquee" style={{ animationDirection: 'reverse' }}>
+                        <span className="text-xl font-bold uppercase tracking-widest mx-4">✦ NEXT-GEN HEALTHCARE ✦ SEAMLESS INTEGRATION ✦ SECURE DATA ✦ NEXT-GEN HEALTHCARE ✦ SEAMLESS INTEGRATION ✦ </span>
+                        <span className="text-xl font-bold uppercase tracking-widest mx-4">✦ NEXT-GEN HEALTHCARE ✦ SEAMLESS INTEGRATION ✦ SECURE DATA ✦ NEXT-GEN HEALTHCARE ✦ SEAMLESS INTEGRATION ✦ </span>
+                    </div>
                 </div>
 
                 {/* Scroll Indicator */}
@@ -224,7 +252,7 @@ export default function Home() {
             </section>
 
             {/* Marquee Ticker */}
-            <section className="py-xl border-y border-mist bg-white/50">
+            <section className="py-xl border-y border-mist bg-white/50 mt-24 lg:mt-32 relative z-20">
                 <div className="marquee-container">
                     <div className="marquee-content">
                         {[
@@ -252,212 +280,224 @@ export default function Home() {
                 </div>
             </section>
 
-            {/* Bento Features Section */}
-            <section id="features" className="py-4xl px-xl">
-                <div className="container max-w-7xl mx-auto">
+            {/* Premium Liquid Canvas Features Section */}
+            <section id="features" className="py-32 px-4 lg:px-8 bg-cream">
+                <div className="w-full max-w-[1400px] mx-auto">
                     <motion.div
                         initial="hidden"
                         whileInView="visible"
                         viewport={{ once: true, margin: "-100px" }}
                         variants={staggerContainer}
-                        className="mb-16 text-center"
+                        className="mb-24 flex flex-col md:flex-row justify-between items-end border-b-4 border-charcoal pb-8"
                     >
-                        <motion.span variants={fadeInUp} className="text-label block mb-4">
-                            Platform Features
-                        </motion.span>
-                        <motion.h2 variants={fadeInUp} className="heading-display heading-display-md">
-                            Everything you need for
-                            <br />
-                            <span className="font-serif italic">modern healthcare</span>
-                        </motion.h2>
+                        <div>
+                            <motion.span variants={fadeInUp} className="text-sm font-mono tracking-widest uppercase mb-4 block text-charcoal/70">
+                                [SYS.01] Platform Features
+                            </motion.span>
+                            <motion.h2 variants={fadeInUp} className="text-[8vw] lg:text-[6rem] leading-none font-bold uppercase tracking-tighter max-w-4xl">
+                                Fluid
+                                <br />
+                                <span className="text-transparent" style={{ WebkitTextStroke: 'max(2px, 0.2vw) var(--charcoal)' }}>Intelligence</span>
+                            </motion.h2>
+                        </div>
+                        <motion.p variants={fadeInUp} className="font-mono text-charcoal/50 text-right mt-8 md:mt-0 uppercase text-xs tracking-widest max-w-[200px]">
+                            Hover to explore our adaptive ecosystem.
+                        </motion.p>
                     </motion.div>
 
-                    {/* Bento Grid */}
-                    <motion.div
-                        initial="hidden"
-                        whileInView="visible"
-                        viewport={{ once: true, margin: "-100px" }}
-                        variants={staggerContainer}
-                        className="bento-grid bento-grid-complex"
-                    >
-                        {/* Large Card - AI Detection */}
-                        <motion.div
-                            variants={scaleIn}
-                            className="card card-sage bento-span-2 bento-row-2 relative overflow-hidden"
-                        >
-                            <div className="relative z-10">
-                                <div className="icon-circle icon-circle-sage mb-6">
-                                    <Scan className="w-5 h-5" />
-                                </div>
-                                <h3 className="heading-serif text-2xl mb-4">
-                                    Real-Time AI Detection
-                                </h3>
-                                <p className="text-body mb-8">
-                                    25+ specialized YOLO models detect conditions across dermatology,
-                                    radiology, ophthalmology, and more with 98.5% accuracy.
-                                </p>
-                                <div className="flex flex-wrap gap-2">
-                                    {['Skin Lesions', 'X-Ray Analysis', 'Eye Diseases', 'Wound Care'].map((tag, i) => (
-                                        <span key={i} className="pill pill-default">{tag}</span>
-                                    ))}
-                                </div>
-                            </div>
-
-                            {/* Floating decorative element */}
-                            <motion.div
-                                className="absolute -bottom-8 -right-8 w-48 h-48 bg-sage rounded-full opacity-30"
-                                animate={{ scale: [1, 1.1, 1], rotate: [0, 5, 0] }}
-                                transition={{ duration: 8, repeat: Infinity }}
-                            />
-                        </motion.div>
-
-                        {/* Video Consultations */}
-                        <motion.div
-                            variants={scaleIn}
-                            className="card card-bordered hover-lift"
-                        >
-                            <Video className="w-8 h-8 mb-4 text-accent-tertiary" />
-                            <h3 className="heading-serif text-xl mb-2">
-                                HD Video Calls
-                            </h3>
-                            <p className="text-body text-sm">
-                                Crystal-clear telemedicine with smart zoom and screen sharing.
-                            </p>
-                        </motion.div>
-
-                        {/* Multi-Agent */}
-                        <motion.div
-                            variants={scaleIn}
-                            className="card card-sky hover-lift"
-                        >
-                            <Brain className="w-8 h-8 mb-4 text-accent-tertiary" />
-                            <h3 className="heading-serif text-xl mb-2">
-                                Clinical Co-Pilot
-                            </h3>
-                            <p className="text-body text-sm">
-                                Multi-agent AI system for diagnosis, documentation, and recommendations.
-                            </p>
-                        </motion.div>
-
-                        {/* SOAP Notes */}
-                        <motion.div
-                            variants={scaleIn}
-                            className="card card-lavender bento-span-2 hover-lift"
-                        >
-                            <div className="flex items-start gap-6">
-                                <FileText className="w-10 h-10 text-accent-secondary flex-shrink-0" />
-                                <div>
-                                    <h3 className="heading-serif text-xl mb-2">
-                                        Auto SOAP Notes
+                    <div className="flex flex-col lg:flex-row gap-8 lg:gap-16 relative items-start">
+                        {/* Left: Minimalist List (40%) */}
+                        <div className="w-full lg:w-2/5 flex flex-col gap-0 lg:border-t-4 border-charcoal relative z-10">
+                            {[
+                                { title: "Real-Time AI Detection", subtitle: "25+ specialized YOLO models." },
+                                { title: "Auto SOAP Notes", subtitle: "Real-time transcription & integration." },
+                                { title: "Clinical Co-Pilot", subtitle: "Dynamic multi-agent diagnosis." },
+                                { title: "HD Video Consults", subtitle: "Crystal-clear telemedicine." },
+                                { title: "HIPAA Secure", subtitle: "End-to-end encryption & logging." },
+                                { title: "30+ Languages", subtitle: "Real-time translation for global access." }
+                            ].map((feat, i) => (
+                                <div
+                                    key={i}
+                                    onMouseEnter={() => setActiveFeature(i)}
+                                    className={`py-8 cursor-pointer border-b-2 border-charcoal/10 transition-all duration-300 flex flex-col justify-center ${activeFeature === i ? 'opacity-100 pl-4 border-b-charcoal' : 'opacity-40 hover:opacity-70'}`}
+                                >
+                                    <div className="font-mono text-xs font-bold tracking-widest mb-2 transition-colors">
+                                        [0{i + 1}]
+                                    </div>
+                                    <h3 className="text-4xl lg:text-5xl font-bold uppercase tracking-tighter leading-none mb-3">
+                                        {feat.title}
                                     </h3>
-                                    <p className="text-body text-sm mb-4">
-                                        AI-generated clinical documentation from real-time transcription.
-                                        Save hours on paperwork.
-                                    </p>
-                                    <div className="flex gap-2">
-                                        <span className="pill pill-outline">S: Subjective</span>
-                                        <span className="pill pill-outline">O: Objective</span>
-                                        <span className="pill pill-outline">A: Assessment</span>
-                                        <span className="pill pill-outline">P: Plan</span>
+                                    <div className={`overflow-hidden transition-all duration-500 ${activeFeature === i ? 'max-h-20 opacity-100' : 'max-h-0 opacity-0'}`}>
+                                        <p className="font-mono text-sm uppercase tracking-wider text-charcoal/70">{feat.subtitle}</p>
                                     </div>
                                 </div>
-                            </div>
-                        </motion.div>
+                            ))}
+                        </div>
 
-                        {/* Security */}
-                        <motion.div
-                            variants={scaleIn}
-                            className="card card-bordered hover-lift"
-                        >
-                            <Shield className="w-8 h-8 mb-4 text-accent-primary" />
-                            <h3 className="heading-serif text-xl mb-2">
-                                HIPAA Secure
-                            </h3>
-                            <p className="text-body text-sm">
-                                End-to-end encryption with full audit logging.
-                            </p>
-                        </motion.div>
+                        {/* Right: Liquid Canvas (60%) */}
+                        <div className="w-full lg:w-3/5 h-[400px] lg:h-[600px] sticky top-32 brutalist-border overflow-hidden bg-charcoal transition-colors duration-700">
+                            <AnimatePresence mode="wait">
+                                {[
+                                    { icon: Scan, color: "var(--sage)", light: "white", title: "VISION", image: "https://images.unsplash.com/photo-1576091160550-2173ff9e5fab?auto=format&fit=crop&q=80&w=1200" },
+                                    { icon: FileText, color: "var(--sky)", light: "white", title: "NOTES", image: "https://images.unsplash.com/photo-1551288049-bebda4e38f71?auto=format&fit=crop&q=80&w=1200" },
+                                    { icon: Brain, color: "var(--lavender)", light: "white", title: "BRAIN", image: "https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?auto=format&fit=crop&q=80&w=1200" },
+                                    { icon: Video, color: "var(--coral-light)", light: "white", title: "VIDEO", image: "https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?auto=format&fit=crop&q=80&w=1200" },
+                                    { icon: Shield, color: "#444444", light: "white", title: "SECURE", image: "https://images.unsplash.com/photo-1558494949-ef010cbdcc31?auto=format&fit=crop&q=80&w=1200" },
+                                    { icon: Globe, color: "var(--sage)", light: "white", title: "GLOBAL", image: "https://images.unsplash.com/photo-1529390079861-591de354faf5?auto=format&fit=crop&q=80&w=1200" }
+                                ].map((canvas, i) => activeFeature === i && (
+                                    <motion.div
+                                        key={i}
+                                        initial={{ opacity: 0 }}
+                                        animate={{ opacity: 1 }}
+                                        exit={{ opacity: 0 }}
+                                        transition={{ duration: 0.5 }}
+                                        className="absolute inset-0 z-0 overflow-hidden bg-charcoal group/canvas"
+                                    >
+                                        {/* Real Image Background */}
+                                        <motion.img
+                                            initial={{ scale: 1.1 }}
+                                            animate={{ scale: 1 }}
+                                            transition={{ duration: 1.5, ease: "easeOut" }}
+                                            src={canvas.image}
+                                            alt={canvas.title}
+                                            className="absolute inset-0 w-full h-full object-cover filter grayscale opacity-40 group-hover/canvas:grayscale-0 group-hover/canvas:opacity-80 transition-all duration-1000"
+                                        />
 
-                        {/* Global */}
-                        <motion.div
-                            variants={scaleIn}
-                            className="card card-coral hover-lift"
-                        >
-                            <Globe className="w-8 h-8 mb-4 text-accent-secondary" />
-                            <h3 className="heading-serif text-xl mb-2">
-                                30+ Languages
-                            </h3>
-                            <p className="text-body text-sm">
-                                Real-time translation for global healthcare access.
-                            </p>
-                        </motion.div>
-                    </motion.div>
+                                        {/* Fluid Mesh Gradient BG Overlay */}
+                                        <motion.div
+                                            animate={{
+                                                scale: [1, 1.2, 1],
+                                                rotate: [0, 90, 180, 270, 360],
+                                                borderRadius: ["30% 70% 70% 30% / 30% 30% 70% 70%", "60% 40% 30% 70% / 60% 30% 70% 40%", "30% 70% 70% 30% / 30% 30% 70% 70%"]
+                                            }}
+                                            transition={{ duration: 25, repeat: Infinity, ease: "linear" }}
+                                            className="absolute w-[150%] h-[150%] opacity-60 blur-[60px] mix-blend-overlay pointer-events-none"
+                                            style={{
+                                                background: `radial-gradient(circle, ${canvas.color} 0%, ${canvas.light} 40%, transparent 70%)`
+                                            }}
+                                        />
+
+                                        {/* HUD Technical Overlay */}
+                                        <div className="absolute inset-0 flex border-t-[40px] border-b-[40px] border-transparent flex-col justify-between p-8 pointer-events-none">
+
+                                            {/* Data Readout Top */}
+                                            <div className="flex justify-between items-start opacity-70">
+                                                <div className="font-mono text-xs text-white uppercase tracking-widest border border-white/20 px-2 py-1 backdrop-blur-sm bg-black/20">
+                                                    [SYS.{String(i + 1).padStart(2, '0')}]
+                                                </div>
+                                                <div className="w-2 h-2 rounded-full bg-white animate-pulse"></div>
+                                            </div>
+
+                                            {/* Foreground Focus Icon & Label Row */}
+                                            <motion.div
+                                                initial={{ scale: 0.9, opacity: 0, x: -20 }}
+                                                animate={{ scale: 1, opacity: 1, x: 0 }}
+                                                transition={{ type: "spring", stiffness: 100, delay: 0.2 }}
+                                                className="flex justify-between items-end"
+                                            >
+                                                <div className="flex items-center gap-4 bg-black/40 backdrop-blur-md border border-white/20 p-4 brutalist-border">
+                                                    <canvas.icon className="w-8 h-8 lg:w-10 lg:h-10 text-white stroke-[2]" />
+                                                    <div>
+                                                        <div className="text-xs text-white/50 font-mono tracking-widest uppercase mb-1">MODULE</div>
+                                                        <div className="font-bold text-lg lg:text-2xl text-white uppercase tracking-tighter leading-none">{canvas.title}</div>
+                                                    </div>
+                                                </div>
+
+                                                {/* Crosshairs Bottom Right */}
+                                                <div className="w-16 h-16 border-b-2 border-r-2 border-white/40 group-hover/canvas:border-white transition-colors"></div>
+                                            </motion.div>
+                                        </div>
+                                    </motion.div>
+                                ))}
+                            </AnimatePresence>
+                        </div>
+                    </div>
                 </div>
             </section>
 
             {/* AI Models Section */}
-            <section id="models" className="py-4xl px-xl" style={{ background: '#1A1A1A', color: '#FFFFFF' }}>
+            <section id="models" className="py-32 px-4 border-y-4 border-charcoal bg-charcoal text-white relative z-10 w-full overflow-hidden">
                 <div className="container max-w-7xl mx-auto">
                     <motion.div
                         initial="hidden"
                         whileInView="visible"
                         viewport={{ once: true }}
                         variants={staggerContainer}
-                        className="grid lg:grid-cols-2 gap-16 items-center"
+                        className="grid lg:grid-cols-2 gap-16 items-start"
                     >
-                        <motion.div variants={fadeInUp}>
-                            <span className="text-label block mb-4" style={{ color: '#A8C5A8' }}>AI Model Hub</span>
-                            <h2 className="heading-display heading-display-md mb-6" style={{ color: '#FFFFFF' }}>
+                        {/* Left Content - Technical Specs */}
+                        <motion.div variants={fadeInUp} className="relative">
+                            <div className="absolute -left-4 md:-left-8 top-0 bottom-0 w-1 bg-gradient-to-b from-sage to-transparent"></div>
+                            <span className="font-mono text-sm tracking-widest uppercase mb-6 block text-sage flex items-center gap-4">
+                                <Activity className="w-4 h-4 animate-pulse" />
+                                [SYS.02] Neural Vision Hub // ACTIVE
+                            </span>
+                            <h2 className="text-[9vw] lg:text-7xl leading-none font-bold uppercase tracking-tighter mb-8">
                                 Powered by
                                 <br />
-                                <span className="font-serif italic" style={{ color: '#A8C5A8' }}>25+ YOLO Models</span>
+                                25+ YOLO <span className="text-sage">Models</span>
                             </h2>
-                            <p className="text-lg mb-8" style={{ color: '#999999' }}>
-                                State-of-the-art computer vision trained on millions of medical images.
-                                Each model is specialized for its domain and continuously improving.
+                            <p className="text-lg font-mono mb-12 text-white/70 max-w-lg border-l-2 border-white/20 pl-4">
+                                &gt; INITIALIZING COMPUTER VISION PROTOCOLS...<br />
+                                &gt; TRAINING_SET: 5.2M CLINICAL IMAGES<br />
+                                &gt; AVG_LATENCY: 12ms<br />
+                                &gt; STATUS: CONTINUOUS LEARNING ACTIVE
                             </p>
 
-                            <ul className="feature-list mb-8">
+                            <ul className="space-y-6 mb-12 font-mono text-sm">
                                 {[
-                                    'Skin Disease Detection (Melanoma, Psoriasis, Eczema)',
-                                    'Chest X-Ray Analysis (COVID-19, Pneumonia, TB)',
-                                    'Ophthalmology Screening (Diabetic Retinopathy)',
-                                    'Wound Assessment & Burn Classification',
-                                    'Bone Fracture Detection',
-                                    'Dental & ECG Analysis'
+                                    { label: 'Skin Disease Detection', specs: 'Melanoma, Psoriasis // ACC: 98.2%' },
+                                    { label: 'Chest X-Ray Analysis', specs: 'COVID-19, TB // ACC: 99.1%' },
+                                    { label: 'Ophthalmology Screening', specs: 'Diabetic Retinopathy // ACC: 97.5%' },
                                 ].map((item, i) => (
-                                    <li key={i} className="feature-item">
-                                        <CheckCircle className="w-5 h-5" style={{ color: '#A8C5A8' }} />
-                                        <span style={{ color: '#E5E5E5' }}>{item}</span>
+                                    <li key={i} className="flex items-start gap-4 border-b border-white/10 pb-4">
+                                        <div className="mt-1">
+                                            <div className="w-3 h-3 bg-sage"></div>
+                                        </div>
+                                        <div>
+                                            <div className="text-white font-bold uppercase tracking-wider mb-1">{item.label}</div>
+                                            <div className="text-white/50">{item.specs}</div>
+                                        </div>
                                     </li>
                                 ))}
                             </ul>
 
-                            <Link href="/dashboard" className="btn btn-sage">
-                                Explore All Models
+                            <Link href="/dashboard" className="group flex items-center gap-4 font-mono text-sm uppercase tracking-widest text-sage hover:text-white transition-colors">
+                                <span className="border-b border-sage group-hover:border-white transition-colors pb-1">Deploy Inference Engine</span>
                                 <ArrowRight className="w-4 h-4" />
                             </Link>
                         </motion.div>
 
+                        {/* Right Content - Severe Grid Terminals */}
                         <motion.div
                             variants={fadeInUp}
-                            className="grid grid-cols-2 gap-4"
+                            className="grid grid-cols-1 sm:grid-cols-2 gap-4"
                         >
                             {[
-                                { name: 'Dermatology', count: '8 models', bg: 'rgba(168, 197, 168, 0.2)', icon: Heart },
-                                { name: 'Radiology', count: '5 models', bg: 'rgba(184, 212, 232, 0.2)', icon: Scan },
-                                { name: 'Ophthalmology', count: '4 models', bg: 'rgba(212, 197, 232, 0.2)', icon: Brain },
-                                { name: 'Cardiology', count: '3 models', bg: 'rgba(232, 168, 156, 0.2)', icon: Activity },
+                                { name: 'Dermatology', count: '8 ACTIVE MODELS', hover: 'group-hover:bg-sage group-hover:text-charcoal group-hover:border-sage', icon: Heart },
+                                { name: 'Radiology', count: '5 ACTIVE MODELS', hover: 'group-hover:bg-sky group-hover:text-charcoal group-hover:border-sky', icon: Scan },
+                                { name: 'Ophthalmology', count: '4 ACTIVE MODELS', hover: 'group-hover:bg-lavender group-hover:text-charcoal group-hover:border-lavender', icon: Brain },
+                                { name: 'Cardiology', count: '3 ACTIVE MODELS', hover: 'group-hover:bg-coral-light group-hover:text-charcoal group-hover:border-coral-light', icon: Activity },
                             ].map((category, i) => (
                                 <motion.div
                                     key={i}
-                                    whileHover={{ scale: 1.03 }}
-                                    className="rounded-2xl p-6 cursor-pointer"
-                                    style={{ background: category.bg }}
+                                    className={`group relative border-2 border-white/20 p-8 min-h-[280px] flex flex-col justify-between transition-all duration-300 ${category.hover}`}
                                 >
-                                    <category.icon className="w-8 h-8 mb-4" style={{ color: '#FFFFFF' }} />
-                                    <h4 className="font-medium text-lg" style={{ color: '#FFFFFF' }}>{category.name}</h4>
-                                    <p className="text-sm" style={{ color: '#999999' }}>{category.count}</p>
+                                    {/* Crosshair corners */}
+                                    <div className="absolute top-0 left-0 w-4 h-4 border-t-2 border-l-2 border-white/40 group-hover:border-transparent transition-colors"></div>
+                                    <div className="absolute top-0 right-0 w-4 h-4 border-t-2 border-r-2 border-white/40 group-hover:border-transparent transition-colors"></div>
+                                    <div className="absolute bottom-0 left-0 w-4 h-4 border-b-2 border-l-2 border-white/40 group-hover:border-transparent transition-colors"></div>
+                                    <div className="absolute bottom-0 right-0 w-4 h-4 border-b-2 border-r-2 border-white/40 group-hover:border-transparent transition-colors"></div>
+
+                                    <div className="flex justify-between items-start">
+                                        <category.icon className="w-8 h-8 text-white/50 group-hover:text-charcoal transition-colors stroke-[1.5]" />
+                                        <span className="font-mono text-[10px] tracking-widest text-white/30 group-hover:text-charcoal/50">NODE_0{i + 1}</span>
+                                    </div>
+
+                                    <div>
+                                        <div className="font-mono text-xs mb-3 text-white/50 group-hover:text-charcoal/70 tracking-widest">{category.count}</div>
+                                        <h4 className="font-bold text-2xl uppercase tracking-wider text-white group-hover:text-charcoal transition-colors">{category.name}</h4>
+                                    </div>
                                 </motion.div>
                             ))}
                         </motion.div>
@@ -465,135 +505,173 @@ export default function Home() {
                 </div>
             </section>
 
-            {/* Collaboration Section */}
-            <section id="collaboration" className="py-4xl px-xl">
-                <div className="container max-w-7xl mx-auto">
+            {/* Collaboration Section - Stark Table Architecture */}
+            <section id="collaboration" className="py-32 px-4 lg:px-8 border-t-4 border-charcoal bg-cream">
+                <div className="w-full max-w-[1400px] mx-auto">
                     <motion.div
                         initial="hidden"
                         whileInView="visible"
                         viewport={{ once: true }}
                         variants={staggerContainer}
-                        className="text-center max-w-3xl mx-auto mb-16"
+                        className="flex flex-col md:flex-row justify-between items-start md:items-end mb-16 border-b-4 border-charcoal pb-8"
                     >
-                        <motion.span variants={fadeInUp} className="text-label block mb-4">
-                            Global Collaboration
-                        </motion.span>
-                        <motion.h2 variants={fadeInUp} className="heading-display heading-display-md mb-6">
-                            Learn from the
-                            <br />
-                            <span className="font-serif italic">world&apos;s best doctors</span>
-                        </motion.h2>
-                        <motion.p variants={fadeInUp} className="text-body text-body-lg">
-                            Join live surgeries, participate in case discussions, and collaborate
-                            with specialists worldwide in real-time.
+                        <div>
+                            <motion.span variants={fadeInUp} className="font-mono text-sm tracking-widest uppercase mb-4 block text-charcoal/70">
+                                [SYS.03] Connect & Collaborate
+                            </motion.span>
+                            <motion.h2 variants={fadeInUp} className="text-[8vw] lg:text-7xl leading-none font-bold uppercase tracking-tighter max-w-4xl">
+                                Global
+                                <br />
+                                <span className="text-transparent" style={{ WebkitTextStroke: 'max(2px, 0.2vw) var(--charcoal)' }}>Expertise</span>
+                            </motion.h2>
+                        </div>
+                        <motion.p variants={fadeInUp} className="font-mono text-charcoal/50 text-right mt-8 md:mt-0 uppercase text-xs tracking-widest max-w-[250px]">
+                            Join live surgeries and participate in real-time complex case discussions worldwide.
                         </motion.p>
                     </motion.div>
 
-                    {/* Feature Cards */}
+                    {/* Massive Kinetic Table */}
                     <motion.div
                         initial="hidden"
                         whileInView="visible"
                         viewport={{ once: true }}
                         variants={staggerContainer}
-                        className="grid md:grid-cols-3 gap-8"
+                        className="w-full flex flex-col"
                     >
                         {[
                             {
-                                icon: Video,
+                                num: '01',
                                 title: 'Live Surgery Streams',
-                                description: 'Watch and learn from live procedures by expert surgeons with real-time annotations and Q&A.',
-                                color: 'card-sage'
+                                desc: 'Watch procedures by expert surgeons with real-time AI annotations and multi-lingual Q&A.',
+                                action: 'TUNE IN',
+                                hoverBg: 'hover:bg-sage text-charcoal'
                             },
                             {
-                                icon: Users,
+                                num: '02',
                                 title: 'Case Discussions',
-                                description: 'Collaborate on complex cases with specialists. Share annotations, findings, and treatment plans.',
-                                color: 'card-sky'
+                                desc: 'Collaborate on complex cases. Share findings, AI-generated SOAP notes, and treatment plans.',
+                                action: 'JOIN ROOM',
+                                hoverBg: 'hover:bg-sky text-charcoal'
                             },
                             {
-                                icon: Award,
+                                num: '03',
                                 title: 'CME Credits',
-                                description: 'Earn continuing medical education credits while learning from curated case studies.',
-                                color: 'card-lavender'
+                                desc: 'Earn continuing medical education credits by learning from verified, curated case studies.',
+                                action: 'EARN CME',
+                                hoverBg: 'hover:bg-lavender text-charcoal'
                             }
-                        ].map((feature, i) => (
+                        ].map((row, i) => (
                             <motion.div
                                 key={i}
-                                variants={scaleIn}
-                                className={`card ${feature.color} hover-lift`}
+                                variants={fadeInUp}
+                                className={`group flex flex-col lg:flex-row lg:items-center justify-between py-12 border-b-2 border-charcoal/20 hover:border-charcoal transition-all duration-300 ${row.hoverBg} px-4 lg:px-8 cursor-pointer relative overflow-hidden`}
                             >
-                                <feature.icon className="w-10 h-10 mb-6" />
-                                <h3 className="heading-serif text-xl mb-3">{feature.title}</h3>
-                                <p className="text-body">{feature.description}</p>
+                                <div className="absolute inset-0 bg-charcoal transform -translate-x-full group-hover:translate-x-0 transition-transform duration-500 ease-out z-0"></div>
+
+                                <div className="relative z-10 flex flex-col lg:flex-row lg:items-center gap-8 lg:gap-24 w-full group-hover:text-white transition-colors duration-300">
+                                    <div className="font-mono text-xl md:text-2xl opacity-50 font-bold group-hover:opacity-100 italic">/{row.num}</div>
+                                    <h3 className="text-4xl md:text-5xl lg:text-6xl font-bold uppercase tracking-tighter whitespace-nowrap">
+                                        {row.title}
+                                    </h3>
+                                    <p className="font-medium max-w-lg opacity-80 group-hover:opacity-100 hidden md:block">
+                                        {row.desc}
+                                    </p>
+                                    <div className="lg:ml-auto flex items-center gap-4">
+                                        <span className="font-mono text-sm font-bold tracking-widest hidden sm:block lg:opacity-0 group-hover:opacity-100 transition-opacity">
+                                            [{row.action}]
+                                        </span>
+                                        <div className="w-12 h-12 border-2 border-charcoal group-hover:border-white rounded-full flex items-center justify-center group-hover:bg-white group-hover:text-charcoal transition-colors">
+                                            <ArrowUpRight className="w-5 h-5 stroke-[3]" />
+                                        </div>
+                                    </div>
+                                </div>
                             </motion.div>
                         ))}
                     </motion.div>
                 </div>
             </section>
 
-            {/* Testimonial */}
-            <section className="py-4xl px-xl bg-cream-dark">
-                <div className="container max-w-4xl mx-auto">
+            {/* Architectural Testimonial */}
+            <section className="py-32 px-4 border-y-4 border-charcoal bg-charcoal text-white relative z-10 w-full overflow-hidden">
+                <div className="container max-w-7xl mx-auto flex flex-col lg:flex-row gap-16 items-center">
                     <motion.div
                         initial="hidden"
                         whileInView="visible"
                         viewport={{ once: true }}
                         variants={fadeInUp}
-                        className="testimonial-card text-center"
+                        className="flex-1 w-full"
                     >
-                        <div className="flex justify-center gap-1 mb-6">
-                            {[...Array(5)].map((_, i) => (
-                                <Star key={i} className="w-5 h-5 fill-yellow-400 text-yellow-400" />
-                            ))}
+                        <div className="font-mono text-sage mb-8 tracking-widest uppercase text-sm flex items-center gap-4 border-b border-white/20 pb-4">
+                            <Star className="w-5 h-5 fill-sage text-sage" />
+                            [SYS.04] Verified Output
                         </div>
-                        <p className="testimonial-quote">
-                            &quot;MediVision has transformed how I practice telemedicine. The AI detection
-                            is incredibly accurate, and the automatic SOAP notes save me 2 hours daily.&quot;
-                        </p>
-                        <div className="flex items-center justify-center gap-4">
-                            <div className="w-12 h-12 rounded-full bg-sage flex items-center justify-center text-white font-medium">
+                        <h3 className="text-[9vw] lg:text-[6rem] leading-[0.9] font-bold uppercase tracking-tighter mb-10 text-white relative z-10">
+                            "The <span className="text-transparent" style={{ WebkitTextStroke: '2px var(--sage)' }}>accuracy</span> is incredible. Auto SOAP notes save me 2 hours daily."
+                        </h3>
+                        <div className="flex items-center gap-6">
+                            <div className="w-16 h-16 border-2 border-sage bg-charcoal flex items-center justify-center text-sage font-bold text-xl uppercase relative">
+                                <span className="absolute -top-1 -left-1 w-2 h-2 bg-sage"></span>
+                                <span className="absolute -bottom-1 -right-1 w-2 h-2 bg-sage"></span>
                                 SM
                             </div>
-                            <div className="text-left">
-                                <div className="font-medium">Dr. Rohan</div>
-                                <div className="text-sm text-slate">Dermatologist, Boston</div>
+                            <div className="text-left font-mono">
+                                <div className="font-bold text-lg text-white uppercase tracking-wider">Dr. Rohan</div>
+                                <div className="text-xs text-white/50 uppercase tracking-widest">Dermatologist // Boston, MA</div>
                             </div>
+                        </div>
+                    </motion.div>
+
+                    <motion.div
+                        initial="hidden"
+                        whileInView="visible"
+                        viewport={{ once: true }}
+                        variants={scaleIn}
+                        className="hidden lg:flex w-1/3 justify-center items-center"
+                    >
+                        {/* Abstract technical visualization */}
+                        <div className="w-full max-w-[300px] aspect-square relative flex items-center justify-center border border-white/10 group overflow-hidden">
+                            <div className="absolute inset-x-0 h-px bg-white/20 top-1/2 -translate-y-1/2 group-hover:bg-sage/50 transition-colors"></div>
+                            <div className="absolute inset-y-0 w-px bg-white/20 left-1/2 -translate-x-1/2 group-hover:bg-sage/50 transition-colors"></div>
+                            <div className="w-3/4 h-3/4 border border-white/20 rounded-full animate-[spin_10s_linear_infinite] group-hover:border-sage/50 transition-colors"></div>
+                            <div className="w-1/2 h-1/2 border border-white/30 rounded-full animate-[spin_7s_linear_infinite_reverse] group-hover:border-sage/50 transition-colors"></div>
+                            <div className="w-4 h-4 bg-sage rounded-full animate-pulse shadow-[0_0_30px_var(--sage)]"></div>
                         </div>
                     </motion.div>
                 </div>
             </section>
 
-            {/* CTA Section */}
-            <section className="py-4xl px-xl">
-                <div className="container max-w-5xl mx-auto text-center">
-                    <motion.div
-                        initial="hidden"
-                        whileInView="visible"
-                        viewport={{ once: true }}
-                        variants={staggerContainer}
-                    >
-                        <motion.h2 variants={fadeInUp} className="heading-display heading-display-lg mb-6">
-                            Ready to transform
-                            <br />
-                            <span className="font-serif italic">your practice?</span>
-                        </motion.h2>
-                        <motion.p variants={fadeInUp} className="text-body text-body-lg max-w-xl mx-auto mb-10">
-                            Join thousands of healthcare providers using MediVision AI
-                            to deliver better care, faster.
-                        </motion.p>
-                        <motion.div variants={fadeInUp} className="flex flex-wrap justify-center gap-md">
-                            <Link href="/login?register=true" className="btn btn-primary btn-lg">
-                                Start Free Trial
-                                <ArrowRight className="w-5 h-5" />
-                            </Link>
-                            <Link href="#contact" className="btn btn-secondary">
-                                Contact Sales
-                            </Link>
+            {/* CTA Section - Kinetic Monolith */}
+            <section className="py-0 px-0 lg:p-8 bg-cream w-full relative z-10">
+                <div className="w-full bg-sage border-y-4 lg:border-4 border-charcoal overflow-hidden relative">
+                    {/* Animated kinetic background stripes */}
+                    <div className="absolute inset-0 opacity-10 pointer-events-none" style={{ backgroundImage: 'repeating-linear-gradient(45deg, var(--charcoal) 0, var(--charcoal) 2px, transparent 2px, transparent 10px)' }}></div>
+
+                    <div className="container py-32 px-4 max-w-5xl mx-auto text-center relative z-10">
+                        <motion.div
+                            initial="hidden"
+                            whileInView="visible"
+                            viewport={{ once: true }}
+                            variants={staggerContainer}
+                        >
+                            <motion.span variants={fadeInUp} className="font-mono text-sm tracking-widest uppercase mb-8 inline-block text-charcoal/80 border-b border-charcoal/30 pb-2">
+                                [SYS.05] Finalize Session
+                            </motion.span>
+                            <motion.h2 variants={fadeInUp} className="text-[12vw] lg:text-[7rem] leading-[0.85] font-bold uppercase tracking-tighter mb-12 text-charcoal">
+                                Transform
+                                <br />
+                                <span className="text-transparent" style={{ WebkitTextStroke: 'min(3px, 0.4vw) var(--charcoal)' }}>Your Practice</span>
+                            </motion.h2>
+                            <motion.div variants={fadeInUp} className="flex flex-wrap justify-center gap-6">
+                                <Link href="/login?register=true" className="brutalist-button bg-charcoal text-white hover:bg-cream hover:text-charcoal flex items-center gap-4 text-xl py-6 px-10">
+                                    INITIALIZE TRIAL
+                                    <ArrowRight className="w-6 h-6 stroke-[3]" />
+                                </Link>
+                            </motion.div>
+                            <motion.p variants={fadeInUp} className="text-sm font-mono text-charcoal/70 mt-8 tracking-widest uppercase">
+                                // NO CREDIT CARD REQ. // 14-DAY TRIAL // ZERO LOCK-IN
+                            </motion.p>
                         </motion.div>
-                        <motion.p variants={fadeInUp} className="text-sm text-silver mt-6">
-                            No credit card required • 14-day free trial • Cancel anytime
-                        </motion.p>
-                    </motion.div>
+                    </div>
                 </div>
             </section>
 

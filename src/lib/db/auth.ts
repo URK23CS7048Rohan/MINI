@@ -1,7 +1,12 @@
 import { Doctor, Patient as PatientType } from '@/types';
 import { v4 as uuidv4 } from 'uuid';
+import { getSupabaseClient } from './supabase';
 
-// Mock Users Database
+// ============================================
+// Authentication — Supabase + Demo Fallback
+// ============================================
+
+// Demo Users (used as fallback when Supabase is unavailable)
 export const MOCK_DOCTORS: Doctor[] = [
     {
         id: 'doc-001',
@@ -141,6 +146,7 @@ export interface AuthUser {
     name: string;
     role: 'doctor' | 'patient' | 'admin' | 'specialist';
     avatar?: string;
+    language?: string;
     token: string;
     refreshToken: string;
     expiresAt: number;
@@ -161,6 +167,7 @@ export interface RegisterData {
     specialty?: string;
     licenseNumber?: string;
     phone?: string;
+    language?: string;
 }
 
 export interface AuthResponse {
@@ -169,11 +176,64 @@ export interface AuthResponse {
     error?: string;
 }
 
-// Simulated Authentication Functions
-export async function login(credentials: LoginCredentials): Promise<AuthResponse> {
-    await new Promise(resolve => setTimeout(resolve, 800));
+// Check if Supabase is configured with real credentials
+function isSupabaseConfigured(): boolean {
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    return !!url && !url.includes('your-project');
+}
 
-    // Demo accounts
+// ============================================
+// LOGIN — Supabase first, demo fallback
+// ============================================
+export async function login(credentials: LoginCredentials): Promise<AuthResponse> {
+    // Try Supabase auth first
+    if (isSupabaseConfigured()) {
+        try {
+            const supabase = getSupabaseClient();
+            const { data, error } = await supabase.auth.signInWithPassword({
+                email: credentials.email,
+                password: credentials.password,
+            });
+
+            if (!error && data.user && data.session) {
+                // Fetch user profile from our users table
+                const { data: profile } = await (supabase
+                    .from('users')
+                    .select('*')
+                    .eq('email', credentials.email)
+                    .single() as unknown as Promise<{ data: { id: string; email: string; name: string; role: string; avatar_url: string | null; preferred_language: string | null } | null; error: unknown }>);
+
+                const user: AuthUser = {
+                    id: data.user.id,
+                    email: data.user.email || credentials.email,
+                    name: profile?.name || data.user.email || 'User',
+                    role: (profile?.role as AuthUser['role']) || credentials.role,
+                    avatar: profile?.avatar_url || undefined,
+                    language: profile?.preferred_language || undefined,
+                    token: data.session.access_token,
+                    refreshToken: data.session.refresh_token,
+                    expiresAt: (data.session.expires_at || 0) * 1000,
+                };
+
+                if (typeof window !== 'undefined') {
+                    localStorage.setItem('medivision_auth', JSON.stringify(user));
+                }
+
+                return { success: true, user };
+            }
+
+            if (error) {
+                console.warn('Supabase auth error:', error.message);
+                // Don't return error yet — fall through to demo accounts
+            }
+        } catch (e) {
+            console.warn('Supabase connection failed, falling back to demo accounts');
+        }
+    }
+
+    // Demo account fallback
+    await new Promise(resolve => setTimeout(resolve, 400));
+
     const demoAccounts = [
         { email: 'doctor@medivision.com', password: 'doctor123', role: 'doctor', name: 'Dr. Rohan', id: 'doc-001' },
         { email: 'patient@medivision.com', password: 'patient123', role: 'patient', name: 'John Anderson', id: 'pat-001' },
@@ -192,12 +252,12 @@ export async function login(credentials: LoginCredentials): Promise<AuthResponse
             email: account.email,
             name: account.name,
             role: account.role as AuthUser['role'],
+            language: 'en',
             token,
             refreshToken: generateToken(),
             expiresAt: Date.now() + (credentials.rememberMe ? 7 * 24 * 60 * 60 * 1000 : 24 * 60 * 60 * 1000),
         };
 
-        // Store in localStorage for persistence
         if (typeof window !== 'undefined') {
             localStorage.setItem('medivision_auth', JSON.stringify(user));
         }
@@ -208,16 +268,77 @@ export async function login(credentials: LoginCredentials): Promise<AuthResponse
     return { success: false, error: 'Invalid email, password, or role' };
 }
 
+// ============================================
+// REGISTER — Supabase first, demo fallback
+// ============================================
 export async function register(data: RegisterData): Promise<AuthResponse> {
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    // Try Supabase registration first
+    if (isSupabaseConfigured()) {
+        try {
+            const supabase = getSupabaseClient();
+            const { data: authData, error } = await supabase.auth.signUp({
+                email: data.email,
+                password: data.password,
+                options: {
+                    data: {
+                        name: data.name,
+                        role: data.role,
+                    },
+                },
+            });
 
-    // Simulate registration
+            if (!error && authData.user) {
+                // Insert into our users table
+                await (supabase.from('users') as unknown as { insert: (data: Record<string, unknown>) => Promise<unknown> }).insert({
+                    email: data.email,
+                    name: data.name,
+                    role: data.role,
+                    specialty: data.specialty || null,
+                    license_number: data.licenseNumber || null,
+                    phone: data.phone || null,
+                    preferred_language: data.language || 'en',
+                    is_verified: false,
+                    is_online: false,
+                });
+
+                const token = authData.session?.access_token || generateToken();
+                const user: AuthUser = {
+                    id: authData.user.id,
+                    email: data.email,
+                    name: data.name,
+                    role: data.role,
+                    language: data.language || 'en',
+                    token,
+                    refreshToken: authData.session?.refresh_token || generateToken(),
+                    expiresAt: authData.session
+                        ? (authData.session.expires_at || 0) * 1000
+                        : Date.now() + 24 * 60 * 60 * 1000,
+                };
+
+                if (typeof window !== 'undefined') {
+                    localStorage.setItem('medivision_auth', JSON.stringify(user));
+                }
+
+                return { success: true, user };
+            }
+
+            if (error) {
+                return { success: false, error: error.message };
+            }
+        } catch (e) {
+            console.warn('Supabase registration failed, using demo mode');
+        }
+    }
+
+    // Demo fallback
+    await new Promise(resolve => setTimeout(resolve, 500));
     const token = generateToken();
     const user: AuthUser = {
         id: uuidv4(),
         email: data.email,
         name: data.name,
         role: data.role,
+        language: data.language || 'en',
         token,
         refreshToken: generateToken(),
         expiresAt: Date.now() + 24 * 60 * 60 * 1000,
@@ -230,12 +351,27 @@ export async function register(data: RegisterData): Promise<AuthResponse> {
     return { success: true, user };
 }
 
+// ============================================
+// LOGOUT — Supabase + localStorage cleanup
+// ============================================
 export async function logout(): Promise<void> {
+    if (isSupabaseConfigured()) {
+        try {
+            const supabase = getSupabaseClient();
+            await supabase.auth.signOut();
+        } catch (e) {
+            // Ignore errors during logout
+        }
+    }
+
     if (typeof window !== 'undefined') {
         localStorage.removeItem('medivision_auth');
     }
 }
 
+// ============================================
+// SESSION — Check current user
+// ============================================
 export function getCurrentUser(): AuthUser | null {
     if (typeof window !== 'undefined') {
         const stored = localStorage.getItem('medivision_auth');
@@ -250,11 +386,44 @@ export function getCurrentUser(): AuthUser | null {
     return null;
 }
 
-export async function refreshToken(refreshToken: string): Promise<AuthResponse> {
-    await new Promise(resolve => setTimeout(resolve, 500));
+export async function refreshToken(refreshTokenStr: string): Promise<AuthResponse> {
+    // Try Supabase refresh first
+    if (isSupabaseConfigured()) {
+        try {
+            const supabase = getSupabaseClient();
+            const { data, error } = await supabase.auth.refreshSession({
+                refresh_token: refreshTokenStr,
+            });
+
+            if (!error && data.session) {
+                const currentUser = getCurrentUser();
+                const updatedUser: AuthUser = {
+                    id: currentUser?.id || data.session.user.id,
+                    email: currentUser?.email || data.session.user.email || '',
+                    name: currentUser?.name || 'User',
+                    role: currentUser?.role || 'patient',
+                    language: currentUser?.language || 'en',
+                    token: data.session.access_token,
+                    refreshToken: data.session.refresh_token,
+                    expiresAt: (data.session.expires_at || 0) * 1000,
+                };
+
+                if (typeof window !== 'undefined') {
+                    localStorage.setItem('medivision_auth', JSON.stringify(updatedUser));
+                }
+
+                return { success: true, user: updatedUser };
+            }
+        } catch (e) {
+            // Fall through to local refresh
+        }
+    }
+
+    // Local fallback refresh
+    await new Promise(resolve => setTimeout(resolve, 300));
 
     const currentUser = getCurrentUser();
-    if (currentUser && currentUser.refreshToken === refreshToken) {
+    if (currentUser && currentUser.refreshToken === refreshTokenStr) {
         const newToken = generateToken();
         const updatedUser: AuthUser = {
             ...currentUser,
@@ -276,17 +445,38 @@ function generateToken(): string {
     return uuidv4() + '-' + Date.now().toString(36);
 }
 
-// Biometric Authentication (simulated)
+// Biometric Authentication (uses Supabase session if available)
 export async function biometricLogin(): Promise<AuthResponse> {
     if (typeof window !== 'undefined' && 'PublicKeyCredential' in window) {
         try {
-            // Check if biometric is available
             const available = await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
             if (available) {
-                // Simulate biometric verification
                 await new Promise(resolve => setTimeout(resolve, 1500));
 
-                // Return demo user on success
+                // If Supabase has an active session, use it
+                if (isSupabaseConfigured()) {
+                    try {
+                        const supabase = getSupabaseClient();
+                        const { data: { session } } = await supabase.auth.getSession();
+                        if (session) {
+                            const user: AuthUser = {
+                                id: session.user.id,
+                                email: session.user.email || '',
+                                name: session.user.user_metadata?.name || 'User',
+                                role: session.user.user_metadata?.role || 'doctor',
+                                token: session.access_token,
+                                refreshToken: session.refresh_token,
+                                expiresAt: (session.expires_at || 0) * 1000,
+                            };
+                            localStorage.setItem('medivision_auth', JSON.stringify(user));
+                            return { success: true, user };
+                        }
+                    } catch (e) {
+                        // Fall through to demo
+                    }
+                }
+
+                // Demo fallback
                 const token = generateToken();
                 const user: AuthUser = {
                     id: 'doc-001',
@@ -308,4 +498,3 @@ export async function biometricLogin(): Promise<AuthResponse> {
 
     return { success: false, error: 'Biometric authentication not available' };
 }
-

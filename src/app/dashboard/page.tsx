@@ -52,20 +52,39 @@ import {
 } from 'lucide-react';
 import { useAppStore } from '@/store';
 import { getModelStats } from '@/lib/ai/model-hub';
+import { getCurrentUser, logout, AuthUser } from '@/lib/db/auth';
+import { getSupabaseClient } from '@/lib/db/supabase';
 
-// Demo data
-const upcomingAppointments = [
+// Fallback demo data
+const demoAppointments = [
     { id: 1, patient: 'John Anderson', time: '10:00 AM', type: 'Follow-up', avatar: 'JA', status: 'confirmed' },
     { id: 2, patient: 'Maria Garcia', time: '11:30 AM', type: 'New Consultation', avatar: 'MG', status: 'pending' },
     { id: 3, patient: 'Robert Chen', time: '2:00 PM', type: 'Skin Examination', avatar: 'RC', status: 'confirmed' },
     { id: 4, patient: 'Emma Johnson', time: '3:30 PM', type: 'Review Results', avatar: 'SJ', status: 'confirmed' },
 ];
 
-const recentDetections = [
+const demoDetections = [
     { id: 1, type: 'Skin Lesion', severity: 'high', confidence: 94, patient: 'John A.', time: '2h ago' },
     { id: 2, type: 'Chest X-Ray', severity: 'normal', confidence: 98, patient: 'Maria G.', time: '4h ago' },
     { id: 3, type: 'Eye Scan', severity: 'medium', confidence: 87, patient: 'Robert C.', time: '5h ago' },
 ];
+
+function getGreeting(): string {
+    const hour = new Date().getHours();
+    if (hour < 12) return 'Good Morning';
+    if (hour < 17) return 'Good Afternoon';
+    return 'Good Evening';
+}
+
+function getInitials(name: string): string {
+    return name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
+}
+
+function formatDate(): string {
+    return new Date().toLocaleDateString('en-US', {
+        weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
+    });
+}
 
 export default function DashboardPage() {
     const router = useRouter();
@@ -73,11 +92,77 @@ export default function DashboardPage() {
     const [isLoading, setIsLoading] = useState(true);
     const [activeTab, setActiveTab] = useState('overview');
     const [sidebarOpen, setSidebarOpen] = useState(false);
+    const [user, setUser] = useState<AuthUser | null>(null);
+    const [appointments, setAppointments] = useState(demoAppointments);
+    const [detections, setDetections] = useState(demoDetections);
+    const [stats, setStats] = useState({ appointments: '8', detections: '24', patients: '156', documents: '12' });
     const modelStats = getModelStats();
 
     useEffect(() => {
-        setTimeout(() => setIsLoading(false), 800);
-    }, []);
+        // Load logged-in user
+        const currentUser = getCurrentUser();
+        if (!currentUser) {
+            router.push('/login');
+            return;
+        }
+        setUser(currentUser);
+
+        // Try to fetch real data from Supabase
+        const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+        if (supabaseUrl && !supabaseUrl.includes('your-project')) {
+            const supabase = getSupabaseClient();
+            // Fetch appointments
+            (supabase.from('appointments').select('*').limit(5) as unknown as Promise<{ data: Array<{ id: number; patient_name: string; scheduled_time: string; appointment_type: string; status: string }> | null }>)
+                .then(({ data }) => {
+                    if (data && data.length > 0) {
+                        setAppointments(data.map((a: { id: number; patient_name: string; scheduled_time: string; appointment_type: string; status: string }) => ({
+                            id: a.id,
+                            patient: a.patient_name || 'Patient',
+                            time: new Date(a.scheduled_time).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }),
+                            type: a.appointment_type || 'Consultation',
+                            avatar: (a.patient_name || 'P').split(' ').map((w: string) => w[0]).join('').slice(0, 2),
+                            status: a.status || 'confirmed',
+                        })));
+                    }
+                }).catch(() => { /* use demo data */ });
+
+            // Fetch detections
+            (supabase.from('ai_detections').select('*').order('created_at', { ascending: false }).limit(5) as unknown as Promise<{ data: Array<{ id: number; detection_type: string; severity: string; confidence: number; patient_name: string; created_at: string }> | null }>)
+                .then(({ data }) => {
+                    if (data && data.length > 0) {
+                        setDetections(data.map((d: { id: number; detection_type: string; severity: string; confidence: number; patient_name: string; created_at: string }) => {
+                            const mins = Math.round((Date.now() - new Date(d.created_at).getTime()) / 60000);
+                            const timeAgo = mins < 60 ? `${mins}m ago` : `${Math.round(mins / 60)}h ago`;
+                            return {
+                                id: d.id,
+                                type: d.detection_type || 'Detection',
+                                severity: d.severity || 'normal',
+                                confidence: Math.round(d.confidence * 100) || 95,
+                                patient: d.patient_name || 'Unknown',
+                                time: timeAgo,
+                            };
+                        }));
+                    }
+                }).catch(() => { /* use demo data */ });
+
+            // Fetch counts for stats
+            Promise.all([
+                (supabase.from('appointments').select('id', { count: 'exact', head: true }) as unknown as Promise<{ count: number | null }>),
+                (supabase.from('ai_detections').select('id', { count: 'exact', head: true }) as unknown as Promise<{ count: number | null }>),
+                (supabase.from('patients').select('id', { count: 'exact', head: true }) as unknown as Promise<{ count: number | null }>),
+                (supabase.from('consultations').select('id', { count: 'exact', head: true }) as unknown as Promise<{ count: number | null }>),
+            ]).then(([appts, dets, pats, docs]) => {
+                setStats({
+                    appointments: String(appts.count ?? 8),
+                    detections: String(dets.count ?? 24),
+                    patients: String(pats.count ?? 156),
+                    documents: String(docs.count ?? 12),
+                });
+            }).catch(() => { /* use demo stats */ });
+        }
+
+        setTimeout(() => setIsLoading(false), 600);
+    }, [router]);
 
     const fadeInUp = {
         hidden: { opacity: 0, y: 20 },
@@ -200,12 +285,8 @@ export default function DashboardPage() {
                             Settings
                         </Link>
                         <button
-                            onClick={() => {
-                                // Clear any stored auth/session data
-                                if (typeof window !== 'undefined') {
-                                    localStorage.removeItem('medivision_user');
-                                    sessionStorage.clear();
-                                }
+                            onClick={async () => {
+                                await logout();
                                 router.push('/login');
                             }}
                             className="flex items-center gap-3 px-4 py-3 rounded-xl transition-all hover:bg-cloud w-full"
@@ -231,10 +312,10 @@ export default function DashboardPage() {
                         </button>
                         <div>
                             <h1 className="heading-serif text-2xl lg:text-3xl" style={{ color: 'var(--charcoal)' }}>
-                                Good Morning, Dr. Rohan
+                                {getGreeting()}, {user?.name || 'Doctor'}
                             </h1>
                             <p className="text-sm" style={{ color: 'var(--silver)' }}>
-                                Wednesday, January 29, 2026
+                                {formatDate()}
                             </p>
                         </div>
                     </div>
@@ -268,7 +349,7 @@ export default function DashboardPage() {
                             className="w-10 h-10 rounded-full flex items-center justify-center text-white font-medium text-sm cursor-pointer hover:opacity-90 transition-opacity"
                             style={{ background: 'var(--sage)' }}
                         >
-                            SM
+                            {user ? getInitials(user.name) : 'U'}
                         </Link>
                     </div>
                 </header>
@@ -281,10 +362,10 @@ export default function DashboardPage() {
                     className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8"
                 >
                     {[
-                        { label: 'Today\'s Appointments', value: '8', change: '+2', icon: Calendar, color: 'sage' },
-                        { label: 'AI Detections', value: '24', change: '+12%', icon: Scan, color: 'sky' },
-                        { label: 'Active Patients', value: '156', change: '+5', icon: Users, color: 'lavender' },
-                        { label: 'Documents Generated', value: '12', change: '+8', icon: FileText, color: 'coral' },
+                        { label: 'Today\'s Appointments', value: stats.appointments, change: '+2', icon: Calendar, color: 'sage' },
+                        { label: 'AI Detections', value: stats.detections, change: '+12%', icon: Scan, color: 'sky' },
+                        { label: 'Active Patients', value: stats.patients, change: '+5', icon: Users, color: 'lavender' },
+                        { label: 'Documents Generated', value: stats.documents, change: '+8', icon: FileText, color: 'coral' },
                     ].map((stat, i) => (
                         <motion.div
                             key={i}
@@ -340,7 +421,7 @@ export default function DashboardPage() {
                         </div>
 
                         <div className="space-y-3">
-                            {upcomingAppointments.map((apt) => (
+                            {appointments.map((apt) => (
                                 <motion.div
                                     key={apt.id}
                                     whileHover={{ scale: 1.01 }}
@@ -397,7 +478,7 @@ export default function DashboardPage() {
                         </div>
 
                         <div className="space-y-4">
-                            {recentDetections.map((det) => (
+                            {detections.map((det) => (
                                 <div
                                     key={det.id}
                                     className="p-4 rounded-xl"
